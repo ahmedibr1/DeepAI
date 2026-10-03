@@ -59,6 +59,7 @@ interface DGovernance {
   id: string; opportunity_id: string; kind: "risk" | "support"; title: string; detail: string;
   impact: string; owner: string; created_by: string; created_by_role: string; created_at: string;
   applied_to_version: number | null;
+  status?: "open" | "closed"; due_date?: string | null; created_by_id?: string; closed_at?: string | null;
 }
 interface DB { users: DUser[]; governance?: DGovernance[]; findings?: Finding[]; analyses?: DAnalysisRun[]; tracker?: DTrackerItem[]; verticals?: DVertical[]; aiPrompt?: string; aiConfig?: Record<string, any>; teams: DTeam[]; opportunities: DOpp[]; versions: DVersion[]; history: DHistory[]; notifications: DNotification[]; audit: DAudit[]; documents: DDocument[]; comments: DComment[]; decisions: DDecision[]; runs: DRun[]; seq: number; session: string | null }
 
@@ -249,9 +250,12 @@ function aiSettings() {
 
 const findingOpp = (id: string) => id.split("::")[0];
 
-/** Any management or sales role may raise a Risk or a Support Needed item. */
-const canRaiseGovernance = (u: DUser) =>
-  MANAGEMENT_ROLES.includes(u.role) || SALES_ROLES.includes(u.role) || u.role === "admin";
+/** Anyone who can open the opportunity may raise a Risk or a Support Needed item. */
+const canRaiseGovernance = (u: DUser, o: DOpp) =>
+  MANAGEMENT_ROLES.includes(u.role) || SALES_ROLES.includes(u.role) || u.role === "admin" || o.owner_id === u.id;
+/** The person who raised an item, the owner of the opportunity and management may close, reopen or delete it. */
+const canManageGovernance = (u: DUser, o: DOpp, g: DGovernance) =>
+  g.created_by_id === u.id || o.owner_id === u.id || MANAGEMENT_ROLES.includes(u.role) || u.role === "admin";
 
 /** Governance items flow into the open DeepDive version; submitted versions are never touched. */
 function applyGovernance(o: DOpp) {
@@ -264,11 +268,11 @@ function applyGovernance(o: DOpp) {
     if (g.kind === "risk") {
       data.riskTech = [...(data.riskTech ?? []), {
         risk: g.title, mitigation: g.detail || "To be defined with the owner", owner: g.owner,
-        date: "", impact: g.impact, source: `Governance — ${g.created_by_role}`,
+        date: g.due_date ?? "", impact: g.impact, source: `Governance — ${g.created_by_role}`,
       }];
     } else {
       data.support = [...(data.support ?? []), {
-        need: g.title, from: g.owner, priority: g.impact, date: "", source: `Governance — ${g.created_by_role}`,
+        need: g.title, from: g.owner, priority: g.impact, date: g.due_date ?? "", source: `Governance — ${g.created_by_role}`,
       }];
     }
     g.applied_to_version = version.version_number;
@@ -922,22 +926,38 @@ const routes: [string, RegExp, Handler][] = [
   // ---------------------------------------------------------------- review & governance
   ["GET", /^\/opportunities\/([^/]+)\/governance$/, (m) => {
     const u = requireUser(); const o = getOpp(u, m[1]);
+    const latest = versionsOf(o.id).sort((a, b) => b.version_number - a.version_number)[0];
+    const t = team(o.team_id);
+    // Owner choices: the opportunity's people and the team's members, without duplicates.
+    const ids = [o.owner_id, o.manager_id, o.director_id, t?.manager_id, t?.director_id,
+      ...db.users.filter((x) => x.team_id === o.team_id && x.is_active).map((x) => x.id), u.id];
+    const owners = [...new Set(ids.filter(Boolean) as string[])].map((id) => user(id)).filter(Boolean)
+      .map((x) => ({ name: x!.full_name, role: ROLE_LABELS[x!.role] }));
     return {
-      can_add: canRaiseGovernance(u),
+      can_add: canRaiseGovernance(u, o),
+      latest_version: latest?.version_number ?? null,
+      latest_locked: !!latest?.is_locked,
+      owners,
       items: (db.governance ?? []).filter((g) => g.opportunity_id === o.id)
-        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((g) => ({ ...g, status: g.status ?? "open", due_date: g.due_date ?? null,
+                       can_manage: canManageGovernance(u, o, g) })),
     };
   }],
   ["POST", /^\/opportunities\/([^/]+)\/governance$/, (m, body) => {
     const u = requireUser(); const o = getOpp(u, m[1]);
-    if (!canRaiseGovernance(u)) err(403, "Management and sales roles raise governance items.");
+    if (!canRaiseGovernance(u, o)) err(403, "You cannot add items to this opportunity.");
     const kind = body.kind === "support" ? "support" : "risk";
     const title = String(body.title ?? "").trim();
-    if (title.length < 4) err(422, { message: kind === "risk" ? "Describe the risk." : "Describe what support is needed." });
+    if (title.length < 4) err(422, { message: "Enter a title of at least 4 characters." });
+    if (!String(body.detail ?? "").trim()) err(422, { message: "Describe the item, its impact and any required action." });
+    if (String(body.detail ?? "").length > 1000) err(422, { message: "The description is limited to 1000 characters." });
+    if (!String(body.owner ?? "").trim()) err(422, { message: "Choose an owner." });
     const item: DGovernance = {
       id: uid(), opportunity_id: o.id, kind, title, detail: String(body.detail ?? "").trim(),
       impact: String(body.impact ?? "High"), owner: String(body.owner ?? "").trim() || u.full_name,
       created_by: u.full_name, created_by_role: ROLE_LABELS[u.role], created_at: now(), applied_to_version: null,
+      status: "open", due_date: String(body.due_date ?? "").slice(0, 10) || null, created_by_id: u.id, closed_at: null,
     };
     db.governance = [...(db.governance ?? []), item];
     audit("governance.added", { entity_type: "governance", entity_id: item.id, opportunity_id: o.id,
@@ -947,6 +967,29 @@ const routes: [string, RegExp, Handler][] = [
     applyGovernance(o);        // an open working version receives it straight away
     persist();
     return item;
+  }],
+
+  ["POST", /^\/opportunities\/([^/]+)\/governance\/([^/]+)\/status$/, (m, body) => {
+    const u = requireUser(); const o = getOpp(u, m[1]);
+    const g = (db.governance ?? []).find((x) => x.id === m[2] && x.opportunity_id === o.id);
+    if (!g) err(404, "Item not found.");
+    if (!canManageGovernance(u, o, g!)) err(403, "Only the person who added it, the owner or management can change it.");
+    g!.status = body.status === "closed" ? "closed" : "open";
+    g!.closed_at = g!.status === "closed" ? now() : null;
+    audit(`governance.${g!.status === "closed" ? "closed" : "reopened"}`, { entity_type: "governance", entity_id: g!.id,
+      opportunity_id: o.id, details: { title: g!.title } });
+    persist();
+    return { ok: true };
+  }],
+  ["DELETE", /^\/opportunities\/([^/]+)\/governance\/([^/]+)$/, (m) => {
+    const u = requireUser(); const o = getOpp(u, m[1]);
+    const g = (db.governance ?? []).find((x) => x.id === m[2] && x.opportunity_id === o.id);
+    if (!g) err(404, "Item not found.");
+    if (!canManageGovernance(u, o, g!)) err(403, "Only the person who added it, the owner or management can delete it.");
+    db.governance = (db.governance ?? []).filter((x) => x.id !== g!.id);
+    audit("governance.deleted", { entity_type: "governance", entity_id: g!.id, opportunity_id: o.id, details: { title: g!.title } });
+    persist();
+    return null;
   }],
 
   // ---------------------------------------------------------------- opportunity workspace

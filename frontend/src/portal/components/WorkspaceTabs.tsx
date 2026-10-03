@@ -1,5 +1,5 @@
 /* DeepDive workflow (Builder → Review & Governance → AI Analysis), AI Accepted Tracker and Readiness Checklist. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { OpportunityDetail, VersionDetail } from "../api/types";
@@ -520,107 +520,270 @@ export function ReadinessTab({ opp, versionId }: { opp: OpportunityDetail; versi
 interface GovernanceItem {
   id: string; kind: "risk" | "support"; title: string; detail: string; impact: string; owner: string;
   created_by: string; created_by_role: string; created_at: string; applied_to_version: number | null;
+  status: "open" | "closed"; due_date: string | null; can_manage: boolean;
+}
+interface GovernanceList {
+  can_add: boolean; latest_version: number | null; latest_locked: boolean;
+  owners: { name: string; role: string }[]; items: GovernanceItem[];
 }
 
-/** Review & Governance: management and sales raise a Risk or a Support Needed item.
-    Each one lands in the DeepDive version the Presales Lead is working on. */
+const AVATAR_TONES = ["#6B2BC4", "#1E63D6", "#0E8A5F", "#C2410C", "#B0102F", "#0B6E6E", "#7C3AED"];
+function Avatar({ name }: { name: string }) {
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
+  const tone = AVATAR_TONES[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_TONES.length];
+  return <span className="person"><span className="avatar" style={{ background: tone }}>{initials}</span>{name}</span>;
+}
+
+/** Review & Governance: anyone on the opportunity adds a Risk or a Support Needed item; each one lands in the
+    latest DeepDive version (or the next one, once the latest is submitted). */
 export function GovernanceTab({ opp }: { opp: OpportunityDetail }) {
-  const list = useAsync(() => api.get<{ can_add: boolean; items: GovernanceItem[] }>(
-    `/opportunities/${opp.id}/governance`), [opp.id, opp.current_version]);
+  const list = useAsync(() => api.get<GovernanceList>(`/opportunities/${opp.id}/governance`), [opp.id, opp.current_version]);
+  const [tab, setTab] = useState<"all" | "open" | "closed">("all");
+  const [query, setQuery] = useState("");
+  const [priority, setPriority] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [menu, setMenu] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const toast = useToast();
+
+  const data = list.data;
+  const items = data?.items ?? [];
+  const latest = data?.latest_version ?? opp.current_version;
+  const counts = { all: items.length, open: items.filter((g) => g.status === "open").length,
+                   closed: items.filter((g) => g.status === "closed").length };
+  const owners = [...new Set(items.map((g) => g.owner).filter(Boolean))].sort();
+  const q = query.trim().toLowerCase();
+  const shown = items.filter((g) => (tab === "all" || g.status === tab)
+    && (!priority || g.impact === priority) && (!ownerFilter || g.owner === ownerFilter)
+    && (!q || `${g.title} ${g.detail} ${g.owner} ${g.created_by}`.toLowerCase().includes(q)));
+
+  const setStatus = async (g: GovernanceItem, status: "open" | "closed") => {
+    setMenu(null); setError(null);
+    try {
+      await api.post(`/opportunities/${opp.id}/governance/${g.id}/status`, { status });
+      toast(status === "closed" ? "Item closed." : "Item reopened.");
+      await list.reload();
+    } catch (e) { setError(e); }
+  };
+  const remove = async (g: GovernanceItem) => {
+    setMenu(null); setError(null);
+    if (!window.confirm(`Delete “${g.title}”? This cannot be undone.`)) return;
+    try {
+      await api.del(`/opportunities/${opp.id}/governance/${g.id}`);
+      toast("Item deleted.");
+      await list.reload();
+    } catch (e) { setError(e); }
+  };
+
+  // Close the row menu on any click outside it.
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest(".gov-actions")) setMenu(null); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menu]);
+
+  return (
+    <>
+      <ErrorAlert error={error ?? list.error} />
+      <div className="gov-banner">
+        <span className="gov-banner-icon"><Icon name="info" /></span>
+        <div>
+          <b>Add items for this opportunity (latest version: v{latest}).</b>
+          <p>
+            Anyone can add an item. {data?.latest_locked
+              ? `v${latest} is submitted, so new items go into the next DeepDive version when it is opened.`
+              : "It will be added to the latest DeepDive version automatically."}
+          </p>
+        </div>
+        {data?.can_add && (
+          <button className="btn primary" onClick={() => setDrawer(true)}><Icon name="plus" /> Add Item</button>
+        )}
+      </div>
+
+      <section className="card gov-card">
+        <div className="gov-toolbar">
+          <div className="gov-tabs" role="tablist">
+            {(["all", "open", "closed"] as const).map((t) => (
+              <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? "active" : ""}
+                onClick={() => setTab(t)}>
+                {t === "all" ? "All Items" : t === "open" ? "Open" : "Closed"} ({counts[t]})
+              </button>
+            ))}
+          </div>
+          <div className="gov-filters">
+            <label className="gov-search">
+              <Icon name="search" />
+              <input type="search" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search items" />
+            </label>
+            <select value={priority} onChange={(e) => setPriority(e.target.value)} aria-label="Priority">
+              <option value="">All Priority</option>
+              {["High", "Medium", "Low"].map((v) => <option key={v}>{v}</option>)}
+            </select>
+            <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} aria-label="Owner">
+              <option value="">All Owners</option>
+              {owners.map((o) => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+        {list.loading ? <p className="muted card-pad">Loading…</p> : shown.length === 0 ? (
+          <Empty title={items.length ? "No items match" : "No items yet"}>
+            {!items.length && <p className="muted small">Add a risk or a support need — it goes straight into the DeepDive.</p>}
+          </Empty>
+        ) : (
+          <div className="table-wrap">
+            <table className="data gov-table">
+              <thead><tr>
+                <th>Type</th><th>Title / Description</th><th>Priority</th><th>Owner</th><th>Added By</th>
+                <th>Date</th><th>Version</th><th className="center">Actions</th>
+              </tr></thead>
+              <tbody>
+                {shown.map((g) => (
+                  <tr key={g.id} className={g.status === "closed" ? "closed" : ""}>
+                    <td>
+                      <span className={`gov-type ${g.kind}`} title={g.kind === "risk" ? "Risk" : "Support Needed"}>
+                        <Icon name={g.kind === "risk" ? "warning" : "tools"} label={g.kind === "risk" ? "Risk" : "Support Needed"} />
+                      </span>
+                    </td>
+                    <td className="gov-title">
+                      <b>{g.title}</b>
+                      {g.detail && <span>{g.detail}</span>}
+                      {g.status === "closed" && <span className="badge st-completed">Closed</span>}
+                    </td>
+                    <td><span className={`prio ${g.impact.toLowerCase()}`}>{g.impact}</span></td>
+                    <td>{g.owner ? <Avatar name={g.owner} /> : "—"}</td>
+                    <td><Avatar name={g.created_by} /></td>
+                    <td className="nowrap">
+                      {fmtDateTime(g.created_at)}
+                      {g.due_date && <div className="muted small">Due {fmtDate(g.due_date)}</div>}
+                    </td>
+                    <td>
+                      <span className="ver-chip">
+                        {g.applied_to_version ? `v${g.applied_to_version}${g.applied_to_version === latest ? " (current)" : ""}` : "Next version"}
+                      </span>
+                    </td>
+                    <td className="center gov-actions">
+                      {g.can_manage ? <>
+                        <button type="button" className="dots" aria-label={`Actions for ${g.title}`} aria-expanded={menu === g.id}
+                          onClick={() => setMenu(menu === g.id ? null : g.id)}><Icon name="more" /></button>
+                        {menu === g.id && (
+                          <div className="row-menu" role="menu">
+                            {g.status === "open"
+                              ? <button role="menuitem" onClick={() => void setStatus(g, "closed")}>Mark as closed</button>
+                              : <button role="menuitem" onClick={() => void setStatus(g, "open")}>Reopen</button>}
+                            <button role="menuitem" className="danger" onClick={() => void remove(g)}>Delete</button>
+                          </div>
+                        )}
+                      </> : <span className="muted">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {drawer && data && (
+        <AddItemDrawer opp={opp} latest={latest ?? null} latestLocked={data.latest_locked} owners={data.owners}
+          onClose={() => setDrawer(false)}
+          onAdded={async (kind) => {
+            setDrawer(false);
+            toast(kind === "risk" ? "Risk added — it is in the DeepDive." : "Support need added — it is in the DeepDive.");
+            await list.reload();
+          }} />
+      )}
+    </>
+  );
+}
+
+function AddItemDrawer({ opp, latest, latestLocked, owners, onClose, onAdded }: {
+  opp: OpportunityDetail; latest: number | null; latestLocked: boolean; owners: { name: string; role: string }[];
+  onClose: () => void; onAdded: (kind: "risk" | "support") => void | Promise<void>;
+}) {
   const [kind, setKind] = useState<"risk" | "support">("risk");
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
   const [impact, setImpact] = useState("High");
   const [owner, setOwner] = useState("");
+  const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const toast = useToast();
+  const valid = title.trim().length >= 4 && detail.trim().length > 0 && !!owner;
 
-  const add = async () => {
+  const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post(`/opportunities/${opp.id}/governance`, { kind, title, detail, impact, owner });
-      toast(kind === "risk" ? "Risk recorded — it will appear in the DeepDive." : "Support need recorded — it will appear in the DeepDive.");
-      setTitle(""); setDetail(""); setOwner("");
-      await list.reload();
+      await api.post(`/opportunities/${opp.id}/governance`, { kind, title, detail, impact, owner, due_date: due || null });
+      await onAdded(kind);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
-  const items = list.data?.items ?? [];
   return (
-    <>
-      <ErrorAlert error={error ?? list.error} />
-      {list.data?.can_add && (
-        <section className="card panel">
-          <div className="panel-head">
-            <h2 className="section">Raise an item</h2>
-            <span className="muted small">
-              Risks and support needs go straight into the DeepDive version the Presales Lead is working on.
-            </span>
+    <div className="drawer-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"
+        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
+        <header>
+          <div>
+            <h2 id="drawer-title">Add Item</h2>
+            <p className="muted small">{latestLocked
+              ? `v${latest} is submitted, so this will be added to the next DeepDive version.`
+              : `This will be added to the latest DeepDive version${latest ? ` (v${latest})` : ""}.`}</p>
           </div>
-          <div className="card-pad form-grid" style={{ paddingTop: 0 }}>
-            <div className="field">
-              <label htmlFor="g-kind">Type</label>
-              <select id="g-kind" value={kind} onChange={(e) => setKind(e.target.value as "risk" | "support")}>
-                <option value="risk">Risk</option>
-                <option value="support">Support Needed</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="g-impact">{kind === "risk" ? "Impact" : "Priority"}</label>
-              <select id="g-impact" value={impact} onChange={(e) => setImpact(e.target.value)}>
-                {["High", "Medium", "Low"].map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </div>
-            <div className="field span">
-              <label htmlFor="g-title">{kind === "risk" ? "Risk" : "Support needed"}</label>
-              <input id="g-title" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)}
-                placeholder={kind === "risk" ? "What could go wrong" : "What is needed, and from whom"} />
-            </div>
-            <div className="field span">
-              <label htmlFor="g-detail">{kind === "risk" ? "Mitigation" : "Details"}</label>
-              <textarea id="g-detail" rows={3} value={detail} onChange={(e) => setDetail(e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="g-owner">{kind === "risk" ? "Owner" : "Required from"}</label>
-              <input id="g-owner" value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Name or team" />
-            </div>
-            <div className="row-actions span">
-              <button className="btn primary" disabled={busy || title.trim().length < 4} onClick={() => void add()}>
-                {busy ? "Adding…" : kind === "risk" ? "Add risk" : "Add support need"}
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section className="card panel">
-        <div className="panel-head">
-          <h2 className="section">Governance history ({items.length})</h2>
-          <span className="muted small">Newest first, with who raised it and the version that received it.</span>
-        </div>
-        {items.length === 0 ? <Empty title="Nothing raised yet" /> : (
-          <ul className="timeline card-pad">
-            {items.map((g) => (
-              <li key={g.id}>
-                <div className="t-head">
-                  <span className={`chip ${g.kind === "risk" ? "sev-high" : ""}`}>{g.kind === "risk" ? "Risk" : "Support Needed"}</span>
-                  <span className="chip">{g.impact}</span>
-                  <b>{g.title}</b>
-                </div>
-                {g.detail && <p className="small" style={{ margin: "4px 0" }}>{g.detail}</p>}
-                <div className="t-meta">
-                  {g.created_by} ({g.created_by_role}) · {fmtDateTime(g.created_at)}
-                  {g.owner ? ` · ${g.kind === "risk" ? "Owner" : "From"}: ${g.owner}` : ""}
-                  {g.applied_to_version
-                    ? ` · added to DeepDive v${g.applied_to_version}`
-                    : " · will be added to the next DeepDive version"}
-                </div>
-              </li>
+          <button type="button" className="drawer-close" aria-label="Close" onClick={onClose}><Icon name="x" /></button>
+        </header>
+        <div className="drawer-body">
+          <ErrorAlert error={error} />
+          <fieldset className="type-pick">
+            <legend>Type <span className="req">*</span></legend>
+            {([["risk", "Risk", "warning"], ["support", "Support Needed", "tools"]] as const).map(([k, label, icon]) => (
+              <label key={k} className={`type-card ${k}${kind === k ? " on" : ""}`}>
+                <input type="radio" name="gov-kind" value={k} checked={kind === k} onChange={() => setKind(k)} />
+                <Icon name={icon} /> <b>{label}</b>
+              </label>
             ))}
-          </ul>
-        )}
-      </section>
-    </>
+          </fieldset>
+          <div className="field">
+            <label htmlFor="gi-title">Title <span className="req">*</span></label>
+            <input id="gi-title" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter a clear and concise title" autoFocus />
+          </div>
+          <div className="field">
+            <label htmlFor="gi-detail">Description <span className="req">*</span></label>
+            <textarea id="gi-detail" rows={6} maxLength={1000} value={detail} onChange={(e) => setDetail(e.target.value)}
+              placeholder="Describe the item, its impact, and any required action…" />
+            <span className="muted small counter">{detail.length}/1000</span>
+          </div>
+          <div className="drawer-row">
+            <div className="field">
+              <label htmlFor="gi-prio">Priority <span className="req">*</span></label>
+              <select id="gi-prio" value={impact} onChange={(e) => setImpact(e.target.value)}>
+                {["High", "Medium", "Low"].map((v) => <option key={v}>{v}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="gi-owner">Owner <span className="req">*</span></label>
+              <select id="gi-owner" value={owner} onChange={(e) => setOwner(e.target.value)}>
+                <option value="">Select owner</option>
+                {owners.map((o) => <option key={o.name} value={o.name}>{o.name} — {o.role}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="drawer-row">
+            <div className="field">
+              <label htmlFor="gi-due">Due Date</label>
+              <input id="gi-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <footer>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy || !valid} onClick={() => void submit()}>
+            {busy ? "Adding…" : "Add Item"}
+          </button>
+        </footer>
+      </aside>
+    </div>
   );
 }
