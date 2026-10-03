@@ -5,7 +5,6 @@ import type { HistoryItem, OpportunityDetail, VersionDetail, VersionSummary, Wor
 import { AiSummary } from "../components/AnalysisOutputs";
 import { AiAnalysisTab, GovernanceTab, ReadinessTab, StepTrail, TrackerTab, type Workspace } from "../components/WorkspaceTabs";
 import { BuilderHost, type BuilderHandle } from "../components/BuilderHost";
-import { ReviewTab } from "../components/ReviewTab";
 import { Icon } from "../components/Icon";
 import { Empty, ErrorAlert, Modal, StatusBadge, useToast } from "../components/ui";
 import { fmtDate, fmtDateTime, timeAgo } from "../lib/format";
@@ -253,10 +252,8 @@ export function OpportunityPage() {
             </>}
           </div>
         } />
-        <Route path="review" element={<>
-          <GovernanceTab opp={opp} />
-          <ReviewTab opp={opp} versionId={selectedVersionId} />
-        </>} />
+        {/* Everything raised here goes into the DeepDive, so the DeepDive stays the single reference. */}
+        <Route path="review" element={<GovernanceTab opp={opp} />} />
         {/* AI work lives in the DeepDive's AI Analysis step; older links land there. */}
         <Route path="ai" element={<Navigate to={`/opportunities/${opp.id}/deepdive?step=ai`} replace />} />
         <Route path="ai-recommendations" element={<Navigate to={`/opportunities/${opp.id}/deepdive?step=ai`} replace />} />
