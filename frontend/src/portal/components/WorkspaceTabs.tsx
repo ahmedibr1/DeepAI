@@ -5,6 +5,7 @@ import type { OpportunityDetail } from "../api/types";
 import { fmtDate, fmtDateTime } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
 import { belongsTo, OutputCards, OUTPUTS } from "./AnalysisOutputs";
+import { Icon } from "./Icon";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 
 export interface Workspace {
@@ -117,12 +118,18 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
   };
 
   const [outputKey, setOutputKey] = useState<string | null>(null);
-  const output = OUTPUTS.find((o) => o.key === outputKey) ?? null;
-  const openAll = workspace.findings.filter((f) => f.status === "open");
-  const open = output ? openAll.filter((f) => belongsTo(output, f)) : openAll;
+  const open = workspace.findings.filter((f) => f.status === "open");
+  const analysisTitle = (kind: string) => workspace.analyses.find((a) => a.kind === kind)?.title ?? kind;
+  // Findings grouped under the output card they belong to, in card order; anything unmapped goes last.
+  const groups = [
+    ...OUTPUTS.map((o, i) => ({ key: o.key, num: String(i + 1), title: o.title, icon: o.icon, tone: o.tone,
+                                items: open.filter((f) => belongsTo(o, f)) })),
+    { key: "other", num: "•", title: "Other findings — Director comments", icon: "review", tone: "grey",
+      items: open.filter((f) => !OUTPUTS.some((o) => belongsTo(o, f))) },
+  ].filter((g) => g.items.length > 0);
   const showDetails = (key: string) => {
     setOutputKey(key);
-    requestAnimationFrame(() => document.getElementById("ai-findings")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() => document.getElementById(`ai-group-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   if (!workspace.session_confirmed) {
@@ -208,36 +215,47 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
 
       <section className="card panel" id="ai-findings" style={{ marginTop: 18 }}>
         <div className="panel-head">
-          <h2 className="section">
-            {output ? `${output.title} (${open.length})` : `All findings (${open.length})`}
-          </h2>
-          {outputKey && <button className="btn ghost small" onClick={() => setOutputKey(null)}>Show all</button>}
+          <h2 className="section">Findings by output ({open.length})</h2>
           <span className="muted small">Every finding carries its evidence. Nothing reaches the DeepDive without acceptance.</span>
         </div>
-        {open.length === 0 ? <Empty title="No open findings" /> : (
-          <div className="card-pad finding-list">
-            {open.map((f) => (
-              <article key={f.id} className="finding">
-                <header>
-                  <span className="chip">{f.type}</span>
-                  <span className={`chip sev-${f.severity}`}>{f.severity}</span>
-                  <b>{f.title}</b>
+        {groups.length === 0 ? <Empty title="No open findings" /> : (
+          <div className="card-pad finding-groups">
+            {groups.map((g) => (
+              <section key={g.key} id={`ai-group-${g.key}`}
+                className={`finding-group${outputKey === g.key ? " selected" : ""}`}>
+                <header className="finding-group-head">
+                  <span className="out-num">{g.num}</span>
+                  <span className={`out-icon tone-${g.tone}`}><Icon name={g.icon} /></span>
+                  <h3>{g.title}</h3>
+                  <span className="muted small">{g.items.length} {g.items.length === 1 ? "finding" : "findings"}</span>
                 </header>
-                <p>{f.description}</p>
-                <dl className="finding-meta">
-                  <dt>Evidence</dt><dd>{f.evidence}</dd>
-                  <dt>Recommendation</dt><dd>{f.recommendation}</dd>
-                  {f.related_document && <><dt>Document</dt><dd>{f.related_document}</dd></>}
-                  {f.related_requirement && <><dt>Requirement</dt><dd>{f.related_requirement}</dd></>}
-                </dl>
-                {workspace.can_accept && (
-                  <div className="row-actions">
-                    <button className="btn primary small" onClick={() => void act(f.id, "accept")}>Accept</button>
-                    <button className="btn ghost small" onClick={() => { setEditing(f); setDraft(f.recommendation); }}>Modify &amp; Accept</button>
-                    <button className="btn ghost small" onClick={() => void act(f.id, "dismiss")}>Dismiss</button>
-                  </div>
-                )}
-              </article>
+                <div className="finding-list">
+                  {g.items.map((f) => (
+                    <article key={f.id} className="finding">
+                      <header>
+                        <span className="chip source">{analysisTitle(f.analysis)}</span>
+                        <span className="chip">{f.type}</span>
+                        <span className={`chip sev-${f.severity}`}>{f.severity}</span>
+                        <b>{f.title}</b>
+                      </header>
+                      <p>{f.description}</p>
+                      <dl className="finding-meta">
+                        <dt>Evidence</dt><dd>{f.evidence}</dd>
+                        <dt>Recommendation</dt><dd>{f.recommendation}</dd>
+                        {f.related_document && <><dt>Document</dt><dd>{f.related_document}</dd></>}
+                        {f.related_requirement && <><dt>Requirement</dt><dd>{f.related_requirement}</dd></>}
+                      </dl>
+                      {workspace.can_accept && (
+                        <div className="row-actions">
+                          <button className="btn primary small" onClick={() => void act(f.id, "accept")}>Accept</button>
+                          <button className="btn ghost small" onClick={() => { setEditing(f); setDraft(f.recommendation); }}>Modify &amp; Accept</button>
+                          <button className="btn ghost small" onClick={() => void act(f.id, "dismiss")}>Dismiss</button>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
