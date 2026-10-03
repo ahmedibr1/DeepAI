@@ -75,6 +75,11 @@ export function analyse(kind: string, ctx: {
         recommendation: "Answer each flagged clause in the TP compliance matrix.",
         related_document: ta.file_name, related_requirement: "Mandatory clauses" }, 5);
     }
+    push({ type: "Value Proposition", severity: "low", title: "Lead with the in-Kingdom hosting and local support",
+      description: "The customer weighs data residency and response times; the TP mentions both only in the appendix.",
+      evidence: `${tpRef} — appendix; ${customerRef} — evaluation criteria`,
+      recommendation: "Move the differentiators and two comparable references into the executive summary.",
+      related_document: tp?.file_name ?? null, related_requirement: "Evaluation criteria" }, 6);
   }
 
   if (kind === "commercial") {
@@ -99,6 +104,11 @@ export function analyse(kind: string, ctx: {
         evidence: `${ta.file_name} v${ta.doc_version}`, recommendation: "Attach the required forms and reference them in the CP index.",
         related_document: ta.file_name, related_requirement: "Submission forms" }, 4);
     }
+    push({ type: "Commercial Benchmarking", severity: "medium", title: "Managed-service rate above comparable bids",
+      description: "The monthly managed-service rate in the CP is higher than recent comparable awards in the sector.",
+      evidence: `${cpRef} — managed services pricing`,
+      recommendation: "Review the rate against the last comparable awards, or justify it with the service levels offered.",
+      related_document: cp?.file_name ?? null, related_requirement: "Managed services" }, 5);
   }
 
   if (kind === "final") {

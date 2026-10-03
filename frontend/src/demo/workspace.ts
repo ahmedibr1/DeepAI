@@ -27,19 +27,17 @@ export const DOC_CATEGORIES: { value: string; label: string; group: string }[] =
 export const ANALYSES = [
   { kind: "early", title: "Early Analysis", blurb: "Understand the opportunity and the customer's requirements.",
     requires: ["deepdive", "customer"],
-    outputs: ["Questions for Customer", "Initial Risk Findings", "Proposed Internal / Subsidiaries / Vendors", "Proposed Solutions"] },
+    outputs: ["Questions for Customer", "Risk Findings (Initial)", "Proposed Internal / Subsidiaries / Vendors", "Proposed Solutions"] },
   { kind: "technical", title: "Technical Analysis", blurb: "Technical coverage, gaps and submission readiness.",
     requires: ["deepdive", "customer", "tp"], optional: ["ta"],
-    outputs: ["Executive Summary", "Scope Coverage & Gaps", "Technical Risk Findings", "Recommended Mitigations",
-              "Value Proposition & References", "Internal Capability Alignment", "Technical Submission Readiness"] },
+    outputs: ["Executive Summary (Modification)", "Scope Coverage & Gaps", "Technical Risk Findings with Mitigation",
+              "Value Propositions & References", "Internal Capability Alignment", "Technical Submission Readiness"] },
   { kind: "commercial", title: "Financial Analysis", blurb: "Pricing consistency, financial risks and benchmarking.",
     requires: ["deepdive", "customer", "cp"], optional: ["ta"],
-    outputs: ["Commercial Benchmarking", "Pricing consistency", "Commercial risks", "Commercial assumptions",
-              "Quotation / CP consistency", "Tender Analyzer findings", "Recommended mitigations"] },
+    outputs: ["Commercial Benchmarking", "Financial Risk Findings with Mitigation", "Commercial Submission Readiness"] },
   { kind: "final", title: "Final Review", blurb: "Executive assessment and submission readiness.",
     requires: ["deepdive", "customer", "tp", "cp", "ta"],
-    outputs: ["Consolidated open findings", "Final risks & mitigation", "Technical readiness", "Commercial readiness",
-              "Outstanding customer questions", "Critical blockers"] },
+    outputs: ["Final Risk Findings with Mitigation", "Submission Readiness"] },
 ];
 
 const REQUIREMENT_LABEL: Record<string, string> = {
