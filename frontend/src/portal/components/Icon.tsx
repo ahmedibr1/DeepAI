@@ -32,6 +32,8 @@ const PATHS: Record<string, string> = {
   building: "M4 21V5h10v16M14 9h6v12M2 21h20M8 9h2M8 13h2M8 17h2M17 13h1M17 17h1",
   clipboard: "M8 4h8v3H8zM6 5H5v16h14V5h-1M9 14l2 2 4-4",
   shieldCheck: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM8.5 12l2.5 2.5 4.5-4.5",
+  dollar: "M12 21a9 9 0 100-18 9 9 0 000 18zM15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6.5v1.5M12 16v1.5",
+  checkSquare: "M4 4h16v16H4zM8 12l3 3 5-6",
   handshake: "M4 12l4-4 4 4 4-4 4 4M4 12l4 4 4-4 4 4 4-4",
 };
 

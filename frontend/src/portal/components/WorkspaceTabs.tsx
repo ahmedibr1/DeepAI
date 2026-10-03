@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import type { OpportunityDetail } from "../api/types";
 import { fmtDate, fmtDateTime } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
-import { AnalysisOutputs, OUTPUT_SPECS, OTHER_OUTPUT, outputOf } from "./AnalysisOutputs";
+import { belongsTo, OutputCards, OUTPUTS } from "./AnalysisOutputs";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 
 export interface Workspace {
@@ -102,7 +102,7 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
     try {
       await api.post(`/opportunities/${opp.id}/analyses/${kind}/run`);
       toast("Analysis completed. Review the outputs below.");
-      setView(kind); setOutputKey(null);
+      setOutputKey(null);
       onChanged();
     } catch (e) { setError(e); } finally { setBusy(null); }
   };
@@ -116,17 +116,14 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
     } catch (e) { setError(e); }
   };
 
-  const firstDone = workspace.analyses.find((a) => a.status === "completed" || a.status === "reanalysis_required");
-  const [view, setView] = useState<string>(firstDone?.kind ?? workspace.analyses[0]?.kind ?? "early");
   const [outputKey, setOutputKey] = useState<string | null>(null);
-  const viewed = workspace.analyses.find((a) => a.kind === view);
-  const openAll = workspace.findings.filter((f) => f.status === "open" && f.analysis === view);
-  const counts = openAll.reduce<Record<string, number>>((acc, f) => {
-    const k = outputOf(f.analysis, f.type); acc[k] = (acc[k] ?? 0) + 1; return acc;
-  }, {});
-  const open = outputKey ? openAll.filter((f) => outputOf(f.analysis, f.type) === outputKey) : openAll;
-  const outputTitle = outputKey
-    ? ([...(OUTPUT_SPECS[view] ?? []), OTHER_OUTPUT].find((o) => o.key === outputKey)?.title ?? "") : "";
+  const output = OUTPUTS.find((o) => o.key === outputKey) ?? null;
+  const openAll = workspace.findings.filter((f) => f.status === "open");
+  const open = output ? openAll.filter((f) => belongsTo(output, f)) : openAll;
+  const showDetails = (key: string) => {
+    setOutputKey(key);
+    requestAnimationFrame(() => document.getElementById("ai-findings")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   if (!workspace.session_confirmed) {
     return (
@@ -206,25 +203,13 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
         ))}
       </div>
 
-      <div className="output-tabs" role="tablist" aria-label="Analysis outputs">
-        {workspace.analyses.map((a) => (
-          <button key={a.kind} type="button" role="tab" aria-selected={view === a.kind}
-            className={`output-tab${view === a.kind ? " active" : ""}`}
-            onClick={() => { setView(a.kind); setOutputKey(null); }}>
-            {a.title}
-            <span className="muted small">{ANALYSIS_LABEL[a.status]}</span>
-          </button>
-        ))}
-      </div>
-      {viewed && (
-        <AnalysisOutputs kind={viewed.kind} title={viewed.title} status={viewed.status} counts={counts}
-          selected={outputKey} onSelect={setOutputKey} />
-      )}
+      <h2 className="section out-heading">AI Outputs</h2>
+      <OutputCards analyses={workspace.analyses} findings={workspace.findings} selected={outputKey} onSelect={showDetails} />
 
-      <section className="card panel" style={{ marginTop: 18 }}>
+      <section className="card panel" id="ai-findings" style={{ marginTop: 18 }}>
         <div className="panel-head">
           <h2 className="section">
-            {outputKey ? `${outputTitle} (${open.length})` : `Findings — ${viewed?.title ?? ""} (${open.length})`}
+            {output ? `${output.title} (${open.length})` : `All findings (${open.length})`}
           </h2>
           {outputKey && <button className="btn ghost small" onClick={() => setOutputKey(null)}>Show all</button>}
           <span className="muted small">Every finding carries its evidence. Nothing reaches the DeepDive without acceptance.</span>
