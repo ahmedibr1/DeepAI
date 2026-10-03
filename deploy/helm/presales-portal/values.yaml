@@ -83,6 +83,11 @@ ai:
     gpuMemoryUtilization: "0.08"
     # Shares the single RTX PRO 6000 with the LLM via NVIDIA GPU Operator time-slicing (replicas: 2).
     resources: { limits: { nvidia.com/gpu: 1, memory: 12Gi }, requests: { cpu: "1", memory: 6Gi } }
+  rerank:
+    # Optional cross-encoder for AI Configuration → Retrieval → "rerank". Serve it with vLLM
+    # (--task=score, e.g. BAAI/bge-reranker-v2-m3) and point baseUrl at its /v1. Empty: reranking is skipped.
+    baseUrl: ""
+    model: BAAI/bge-reranker-v2-m3
   worker:
     # The worker runs from the API image (same code, different entry point).
     replicas: 1

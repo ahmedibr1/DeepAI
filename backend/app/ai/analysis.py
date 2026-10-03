@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai import ingest, prompts, retrieval, validation
+from app.ai import settings as ai_settings
 from app.ai.providers import EmbeddingProvider, LlmProvider
 from app.ai.schema import AREA_KEYS, SCHEMA_VERSION, AnalysisResult, json_schema
 from app.core.enums import AiRunStatus, OpportunityStatus, Readiness
@@ -40,8 +41,15 @@ def build_manifest(db: Session, opp: Opportunity, version: OpportunityVersion) -
     }
 
 
-def _context(db: Session, version: OpportunityVersion, embeddings: EmbeddingProvider) -> tuple[str, dict[str, str]]:
-    """The whole DeepDive and every comment, plus the document passages that matter most for this DeepDive."""
+def _context(db: Session, version: OpportunityVersion, embeddings: EmbeddingProvider, retrieval_cfg: dict | None = None,
+             reranker=None) -> tuple[str, dict[str, str]]:
+    """The whole DeepDive and every comment, plus the document passages that matter most for this DeepDive.
+
+    retrieval_cfg is the AI Configuration → Retrieval section: top_k passages per query, the minimum vector
+    similarity, and whether a reranker re-orders the candidates."""
+    cfg = retrieval_cfg or {}
+    top_k, min_score = int(cfg.get("top_k", 8)), cfg.get("min_score")
+    use_rerank = bool(cfg.get("rerank")) and reranker is not None
     hits = retrieval.all_chunks(db, version.id, kinds=["deepdive", "review"], limit=400)
     data = version.deepdive.data if version.deepdive else {}
     queries = [
@@ -57,7 +65,12 @@ def _context(db: Session, version: OpportunityVersion, embeddings: EmbeddingProv
     ]
     seen: set[str] = set()
     for query in [q for q in queries if q.strip()]:
-        for hit in retrieval.search(db, version.id, query[:2000], embeddings, limit=8, kinds=["document"]):
+        # With a reranker, fetch a wider candidate set and let the cross-encoder pick the best top_k.
+        found = retrieval.search(db, version.id, query[:2000], embeddings, limit=top_k * 3 if use_rerank else top_k,
+                                 kinds=["document"], min_score=min_score)
+        if use_rerank:
+            found = retrieval.rerank(found, query[:2000], reranker, top_k)
+        for hit in found:
             if hit.chunk_id not in seen:
                 seen.add(hit.chunk_id)
                 hits.append(hit)
@@ -100,7 +113,8 @@ def _store(db: Session, run: AiAnalysisRun, result: AnalysisResult, report: vali
     run.validation_errors = report.warnings or None
 
 
-def run_analysis(db: Session, run_id: UUID, embeddings: EmbeddingProvider, llm: LlmProvider) -> AiAnalysisRun:
+def run_analysis(db: Session, run_id: UUID, embeddings: EmbeddingProvider, llm: LlmProvider,
+                 reranker=None) -> AiAnalysisRun:
     run = db.get(AiAnalysisRun, run_id)
     version = db.get(OpportunityVersion, run.version_id)
     opp = db.get(Opportunity, run.opportunity_id)
@@ -109,25 +123,29 @@ def run_analysis(db: Session, run_id: UUID, embeddings: EmbeddingProvider, llm: 
     run.started_at = datetime.now(UTC)
     run.llm_model = getattr(llm, "name", "unknown")
     run.embedding_model = getattr(embeddings, "name", "unknown")
-    run.prompt_version = prompts.PROMPT_VERSION
+    cfg = ai_settings.load(db)                   # what the admin set on AI Configuration, read once per run
+    generation, retrieval_cfg = cfg["generation"], cfg["retrieval"]
+    run.prompt_version = cfg["prompt_version"]
     run.output_schema_version = SCHEMA_VERSION
     db.flush()
 
     try:
         summary = ingest.ingest_version(db, version, embeddings)
-        context, supplied = _context(db, version, embeddings)
+        context, supplied = _context(db, version, embeddings, retrieval_cfg, reranker)
         if not supplied:
             raise RuntimeError("There is nothing to analyse for this version.")
         comment_ids = [c.field_path for c in []]  # comment ids are already embedded in the review chunks
         user_prompt = prompts.build_user_prompt(context)
-        raw, usage = llm.complete_json(prompts.SYSTEM_PROMPT, user_prompt, json_schema(), temperature=0.1)
+        system = cfg["system_prompt"]
+        temperature, max_tokens = generation["temperature"], generation["max_output_tokens"]
+        raw, usage = llm.complete_json(system, user_prompt, json_schema(), temperature=temperature, max_tokens=max_tokens)
 
         try:
             result = AnalysisResult.model_validate(raw)
         except ValidationError as exc:               # one repair attempt, telling the model exactly what failed
             repair = (f"{user_prompt}\n\nYour previous answer did not match the schema:\n{exc.errors()[:8]}\n"
                       "Return corrected JSON only.")
-            raw, usage = llm.complete_json(prompts.SYSTEM_PROMPT, repair, json_schema(), temperature=0.0)
+            raw, usage = llm.complete_json(system, repair, json_schema(), temperature=0.0, max_tokens=max_tokens)
             result = AnalysisResult.model_validate(raw)
 
         for key in AREA_KEYS:                        # never present an area as green just because it was omitted
@@ -136,8 +154,11 @@ def run_analysis(db: Session, run_id: UUID, embeddings: EmbeddingProvider, llm: 
 
         report = validation.validate(result, supplied, ingest.corpus_entities(db, version.id))
         _store(db, run, result, report)
-        run.parameters = {"ingest": summary, "context_chunks": len(supplied), "temperature": 0.1,
-                          "comment_ids": comment_ids}
+        run.parameters = {"ingest": summary, "context_chunks": len(supplied), "temperature": temperature,
+                          "max_output_tokens": max_tokens, "comment_ids": comment_ids,
+                          "retrieval": {**retrieval_cfg, "reranker": getattr(reranker, "name", None)
+                                        if retrieval_cfg["rerank"] else None},
+                          "prompt_is_default": cfg["prompt_is_default"]}
         run.tokens_in, run.tokens_out = usage.get("prompt_tokens"), usage.get("completion_tokens")
         run.completed_at = datetime.now(UTC)
         db.flush()

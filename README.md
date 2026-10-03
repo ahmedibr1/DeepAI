@@ -83,6 +83,17 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 Both are for local testing only: fixed passwords, plain HTTP. Use the Helm chart for anything real.
 
+**AI analysis (RAG) locally.** `docker compose up` also starts the AI worker. Without a GPU it uses the rule-based
+demo analyst, so the flow works but nothing is model-generated. With an NVIDIA GPU, run real models with vLLM:
+```bash
+cp deploy/local/ai-gpu.env.example .env
+docker compose --profile gpu up --build     # LLM, embeddings and reranker; first start downloads the weights
+```
+The pipeline: upload documents → the worker extracts, chunks and embeds them into pgvector → each analysis
+retrieves passages (vector + keyword search, optional reranker) → the model answers in JSON → every finding is
+checked against the passages it cites. The prompt, temperature, output limit and the Retrieval settings
+(top K, minimum score, rerank) on **AI Configuration** are what each run uses, and are recorded on the run.
+
 ## Run locally (manual)
 
 Prerequisites: Python 3.12, Node 22, PostgreSQL 16.

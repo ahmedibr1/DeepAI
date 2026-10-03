@@ -232,3 +232,90 @@ def test_demo_analyst_produces_a_grounded_result_without_a_model(org, complete_d
             assert finding["citations"], "a fact must cite a source"
     assert not [w for w in detail["validation_warnings"] if w["kind"] == "unknown_citation"]
     assert "demo analyst" in detail["recommendation"]["management_recommendation"]
+
+
+CUSTOM_PROMPT = ("You are a careful presales analyst. Cross-check the DeepDive against the customer documents and "
+                 "cite every finding. Say \"Not found\" rather than guessing.")
+
+
+def test_ai_configuration_drives_the_analysis(org, complete_deepdive):
+    """The prompt, generation and retrieval settings saved on AI Configuration are what the run actually uses."""
+    admin = Api("admin")
+    page = admin.get("/api/admin/ai-settings")
+    assert page.status_code == 200, page.text
+    assert page.json()["llm_model"] and page.json()["retrieval"]["top_k"] == 12
+    saved = admin.put("/api/admin/ai-settings", json={
+        "system_prompt": CUSTOM_PROMPT,
+        "generation": {"temperature": 0.5, "max_output_tokens": 3000},
+        "retrieval": {"top_k": 3, "min_score": 0.1, "rerank": False},
+    })
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["prompt_version"].startswith("custom-")
+
+    opp_id = prepare(org, complete_deepdive)
+    _, version_id = ingest_only(opp_id)
+    with SessionLocal() as db:
+        chunk_id = str(db.execute(select(DocumentChunk).where(
+            DocumentChunk.version_id == version_id, DocumentChunk.text.contains("99.9%"))).scalars().first().id)
+    Api("director_one").post(f"/api/opportunities/{opp_id}/ai/runs")
+    llm = ScriptedLlm(good_answer(chunk_id))
+    with SessionLocal() as db:
+        job = queue.claim(db)
+        run = analysis.run_analysis(db, job.run_id, DeterministicEmbeddings(), llm)
+        assert run.status == "succeeded", run.error_message
+        assert llm.calls[0][0] == CUSTOM_PROMPT, "the edited system prompt is sent to the model"
+        assert run.prompt_version.startswith("custom-")
+        assert run.parameters["temperature"] == 0.5 and run.parameters["max_output_tokens"] == 3000
+        assert run.parameters["retrieval"]["top_k"] == 3 and run.parameters["retrieval"]["min_score"] == 0.1
+
+
+def test_settings_are_clamped_to_usable_values(org):
+    admin = Api("admin")
+    saved = admin.put("/api/admin/ai-settings", json={
+        "generation": {"temperature": 7, "max_output_tokens": "lots"}, "retrieval": {"top_k": 0, "min_score": -3}})
+    assert saved.status_code == 200, saved.text
+    data = saved.json()
+    assert data["generation"]["temperature"] == 1.0 and data["generation"]["max_output_tokens"] == 4000
+    assert data["retrieval"]["top_k"] == 1 and data["retrieval"]["min_score"] == 0.0
+
+
+def test_min_score_drops_weak_vector_matches(org, complete_deepdive):
+    opp_id = prepare(org, complete_deepdive)
+    _, version_id = ingest_only(opp_id)
+    with SessionLocal() as db:
+        loose = retrieval.search(db, version_id, "orchestra violin concert", DeterministicEmbeddings(), kinds=["document"])
+        strict = retrieval.search(db, version_id, "orchestra violin concert", DeterministicEmbeddings(),
+                                  kinds=["document"], min_score=0.99)
+        assert loose, "without a threshold the nearest chunks always come back"
+        assert strict == [], "an unrelated query returns nothing once weak matches are dropped"
+        kept = retrieval.search(db, version_id, "availability SLA", DeterministicEmbeddings(),
+                                kinds=["document"], min_score=0.99)
+        assert kept and "99.9%" in kept[0].text, "exact keyword matches survive the threshold"
+
+
+class FakeReranker:
+    name = "fake-reranker"
+
+    def __init__(self):
+        self.queries: list[str] = []
+
+    def rerank(self, query: str, documents: list[str]) -> list[float]:
+        self.queries.append(query)
+        return [1.0 if "99.9%" in d else 0.1 for d in documents]
+
+
+def test_rerank_setting_uses_the_reranker(org, complete_deepdive):
+    Api("admin").put("/api/admin/ai-settings", json={"retrieval": {"top_k": 2, "rerank": True}})
+    opp_id = prepare(org, complete_deepdive)
+    _, version_id = ingest_only(opp_id)
+    with SessionLocal() as db:
+        chunk_id = str(db.execute(select(DocumentChunk).where(
+            DocumentChunk.version_id == version_id, DocumentChunk.text.contains("99.9%"))).scalars().first().id)
+    Api("director_one").post(f"/api/opportunities/{opp_id}/ai/runs")
+    reranker = FakeReranker()
+    with SessionLocal() as db:
+        job = queue.claim(db)
+        run = analysis.run_analysis(db, job.run_id, DeterministicEmbeddings(), ScriptedLlm(good_answer(chunk_id)), reranker)
+        assert run.status == "succeeded", run.error_message
+        assert reranker.queries, "every retrieval query goes through the reranker"
+        assert run.parameters["retrieval"]["reranker"] == "fake-reranker"

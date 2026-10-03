@@ -91,6 +91,35 @@ class OpenAiCompatibleLlm:
         return json.loads(content), body.get("usage", {})
 
 
+class OpenAiCompatibleReranker:
+    """A cross-encoder behind vLLM's /rerank endpoint (e.g. BAAI/bge-reranker-v2-m3): scores each passage against
+    the query, which orders retrieved chunks far better than vector distance alone."""
+
+    def __init__(self, base_url: str, model: str, timeout: float = 120.0, api_key: str | None = None):
+        self.base_url, self.model, self.timeout, self.api_key = base_url.rstrip("/"), model, timeout, api_key
+        self.name = model
+
+    def rerank(self, query: str, documents: list[str]) -> list[float]:
+        """One relevance score per document, in the order given."""
+        if not documents:
+            return []
+        headers = {"authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.post(f"{self.base_url}/rerank", headers=headers,
+                                   json={"model": self.model, "query": query, "documents": documents})
+            response.raise_for_status()
+            results = response.json()["results"]
+        scores = [0.0] * len(documents)
+        for item in results:
+            scores[item["index"]] = float(item["relevance_score"])
+        return scores
+
+
+def build_reranker() -> OpenAiCompatibleReranker | None:
+    url, model = os.environ.get("PORTAL_RERANK_BASE_URL"), os.environ.get("PORTAL_RERANK_MODEL")
+    return OpenAiCompatibleReranker(url, model, api_key=os.environ.get("PORTAL_LLM_API_KEY")) if url and model else None
+
+
 class ScriptedLlm:
     """Returns a prepared answer. Used by tests to exercise validation and storage without a model."""
 

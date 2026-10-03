@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
-from app.ai.providers import EmbeddingProvider
+from app.ai.providers import EmbeddingProvider, OpenAiCompatibleReranker
 
 
 @dataclass
@@ -46,11 +46,15 @@ KEYWORD_SQL = text("""
 
 
 def search(db: Session, version_id: UUID, query: str, embeddings: EmbeddingProvider, *, limit: int = 12,
-           kinds: list[str] | None = None) -> list[Hit]:
+           kinds: list[str] | None = None, min_score: float | None = None) -> list[Hit]:
+    """min_score drops vector matches whose cosine similarity is below it; keyword matches are always kept,
+    since an exact term match is evidence in its own right."""
     kind_filter = ",".join(kinds) if kinds else None
     vector = embeddings.embed([query])[0]
     params = {"version_id": str(version_id), "kinds": kind_filter, "limit": limit}
     rows = db.execute(VECTOR_SQL.bindparams(bindparam("query")), {**params, "query": str(vector)}).mappings().all()
+    if min_score:
+        rows = [row for row in rows if row["score"] is not None and row["score"] >= min_score]
     keyword = db.execute(KEYWORD_SQL, {**params, "q": query}).mappings().all()
 
     merged: dict[str, Hit] = {}
@@ -65,6 +69,14 @@ def search(db: Session, version_id: UUID, query: str, embeddings: EmbeddingProvi
             merged[row["id"]] = Hit(row["id"], row["text"], row["location_label"], row["source_kind"],
                                     row["document_name"], row["field_path"], 1.0 / (60 + rank))
     return sorted(merged.values(), key=lambda h: h.score, reverse=True)[:limit]
+
+
+def rerank(hits: list[Hit], query: str, reranker: OpenAiCompatibleReranker, limit: int) -> list[Hit]:
+    """Re-orders hits by the cross-encoder's relevance and keeps the best `limit`."""
+    scores = reranker.rerank(query, [h.text[:4000] for h in hits])
+    for hit, score in zip(hits, scores):
+        hit.score = score
+    return sorted(hits, key=lambda h: h.score, reverse=True)[:limit]
 
 
 def all_chunks(db: Session, version_id: UUID, kinds: list[str] | None = None, limit: int = 400) -> list[Hit]:

@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     s3_use_ssl: bool = True
 
 
+    # AI model endpoints (vLLM or any OpenAI-compatible server). Unset: deterministic embeddings, no LLM.
+    llm_base_url: str | None = None
+    llm_model: str = "deepdive-llm"
+    llm_provider: str | None = None          # "demo" runs the rule-based analyst without a model
+    embeddings_base_url: str | None = None
+    embeddings_model: str = "embedding"
+    rerank_base_url: str | None = None       # a cross-encoder behind vLLM's /rerank, used when Retrieval → rerank is on
+    rerank_model: str | None = None
+
     cors_origins: list[str] = []
 
     @field_validator("jwt_secret")

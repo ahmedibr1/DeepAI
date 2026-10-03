@@ -12,7 +12,7 @@ interface FineTuning { base_model: string; adapter: string; status: string; data
 
 interface AiSettings {
   system_prompt: string; prompt_is_default: boolean; prompt_version: string;
-  llm_model: string; embedding_model: string; can_edit: boolean;
+  llm_model: string; embedding_model: string; rerank_model?: string | null; can_edit: boolean;
   generation: Generation; retrieval: Retrieval; fine_tuning: FineTuning;
 }
 
@@ -118,13 +118,14 @@ export function AiPromptPage() {
                     <label htmlFor="topk">Passages per question (top K)</label>
                     <input id="topk" type="number" min="3" max="50" readOnly={!d.can_edit} value={d.retrieval.top_k}
                       onChange={(e) => set("retrieval", { ...d.retrieval, top_k: Number(e.target.value) })} />
-                    <span className="hint">How much of the DeepDive, comments and documents each question sees.</span>
+                    <span className="hint">Customer-document passages retrieved for each of the analysis's search questions (1–50). The whole DeepDive is always included.</span>
                   </div>
                   <div className="field">
                     <label htmlFor="minscore">Minimum match score</label>
                     <input id="minscore" type="number" step="0.05" min="0" max="1" readOnly={!d.can_edit}
                       value={d.retrieval.min_score}
                       onChange={(e) => set("retrieval", { ...d.retrieval, min_score: Number(e.target.value) })} />
+                    <span className="hint">Meaning-based matches below this similarity (0–1) are dropped; exact keyword matches are always kept.</span>
                   </div>
                   <div className="field span">
                     <label className="check">
@@ -132,6 +133,11 @@ export function AiPromptPage() {
                         onChange={(e) => set("retrieval", { ...d.retrieval, rerank: e.target.checked })} />
                       Re-rank retrieved passages before answering (slower, more precise citations)
                     </label>
+                    <span className="hint">
+                      {d.rerank_model
+                        ? `Reranker: ${d.rerank_model}.`
+                        : "No reranker model is configured on the server (PORTAL_RERANK_BASE_URL / PORTAL_RERANK_MODEL), so this has no effect until one is."}
+                    </span>
                   </div>
                 </div>
               )}

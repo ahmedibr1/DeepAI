@@ -25,6 +25,8 @@ spec:
           image: {{ include "pp.image" (dict "root" . "image" .Values.ai.embeddings.image) }}
           args:
             - --model=/models/{{ .Values.ai.embeddings.model }}
+            # Served under the plain model name: the worker requests PORTAL_EMBEDDINGS_MODEL, not the /models path.
+            - --served-model-name={{ .Values.ai.embeddings.model }}
             - --task=embed
             - --gpu-memory-utilization={{ .Values.ai.embeddings.gpuMemoryUtilization }}
             - --host=0.0.0.0
@@ -80,6 +82,10 @@ spec:
             - { name: PORTAL_LLM_MODEL, value: {{ .Values.ai.llm.servedModelName | quote }} }
             - { name: PORTAL_EMBEDDINGS_BASE_URL, value: "http://{{ include "pp.fullname" . }}-embeddings:8000/v1" }
             - { name: PORTAL_EMBEDDINGS_MODEL, value: {{ .Values.ai.embeddings.model | quote }} }
+            {{- with .Values.ai.rerank }}{{ if .baseUrl }}
+            - { name: PORTAL_RERANK_BASE_URL, value: {{ .baseUrl | quote }} }
+            - { name: PORTAL_RERANK_MODEL, value: {{ .model | quote }} }
+            {{- end }}{{ end }}
             - { name: PORTAL_STORAGE_BACKEND, value: {{ .Values.documents.backend | quote }} }
             {{- if eq .Values.documents.backend "local" }}
             - { name: PORTAL_LOCAL_STORAGE_PATH, value: /var/lib/portal/documents }

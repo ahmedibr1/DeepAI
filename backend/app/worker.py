@@ -12,7 +12,7 @@ import sys
 import time
 
 from app.ai import analysis, queue
-from app.ai.providers import build_providers
+from app.ai.providers import build_providers, build_reranker
 from app.db import SessionLocal
 
 log = logging.getLogger("portal.worker")
@@ -25,10 +25,10 @@ def _stop(*_args) -> None:
     log.info("shutting down after the current job")
 
 
-def process(job, embeddings, llm) -> None:
+def process(job, embeddings, llm, reranker=None) -> None:
     with SessionLocal() as db:
         if job.kind == "analyze":
-            analysis.run_analysis(db, job.run_id, embeddings, llm)
+            analysis.run_analysis(db, job.run_id, embeddings, llm, reranker)
         elif job.kind == "ingest":
             from app.ai import ingest
             from app.models import OpportunityVersion
@@ -45,9 +45,11 @@ def main(once: bool = False, idle_seconds: float = 2.0) -> int:
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
     embeddings, llm = build_providers()
+    reranker = build_reranker()
     if llm is None:
         log.warning("PORTAL_LLM_BASE_URL is not set: analysis jobs will fail until the model endpoint is configured")
-    log.info("worker %s started (embeddings=%s, llm=%s)", queue.WORKER_ID, embeddings.name, getattr(llm, "name", None))
+    log.info("worker %s started (embeddings=%s, llm=%s, reranker=%s)", queue.WORKER_ID, embeddings.name,
+             getattr(llm, "name", None), getattr(reranker, "name", None))
     while _running:
         with SessionLocal() as db:
             job = queue.claim(db)
@@ -59,7 +61,7 @@ def main(once: bool = False, idle_seconds: float = 2.0) -> int:
         log.info("job %s (%s) started", job.id, job.kind)
         error = None
         try:
-            process(job, embeddings, llm)
+            process(job, embeddings, llm, reranker)
         except Exception as exc:                      # the run itself records its own failure detail
             error = f"{exc.__class__.__name__}: {exc}"
             log.exception("job %s failed", job.id)

@@ -283,31 +283,15 @@ def delete_vertical(vertical_id: uuid.UUID, request: Request, db: Session = Depe
 # ---------------------------------------------------------------- AI prompt
 
 
-DEFAULT_AI_SETTINGS = {
-    "generation": {"temperature": 0.2, "max_output_tokens": 4000, "response_format": "json"},
-    "retrieval": {"top_k": 12, "min_score": 0.25, "rerank": False},
-    "fine_tuning": {"base_model": "", "adapter": "", "status": "not_started", "dataset": "", "notes": ""},
-}
-
-
 def _ai_settings(db: Session) -> dict:
     """One record holding everything the analysis runs with, so new options can be added without a migration."""
-    from app.ai.prompts import PROMPT_VERSION, SYSTEM_PROMPT
-    from app.core.config import settings
+    from app.ai import settings as ai_settings
+    from app.core.config import get_settings
 
-    stored = {row.key: row.value for row in db.execute(select(AiSetting)).scalars()}
-    prompt_row = stored.get("system_prompt")
-    config = {**DEFAULT_AI_SETTINGS, **(stored.get("config") or {})}
-    return {
-        "system_prompt": (prompt_row or {}).get("text") or SYSTEM_PROMPT,
-        "prompt_is_default": prompt_row is None,
-        "prompt_version": PROMPT_VERSION,
-        "llm_model": settings.llm_model,
-        "embedding_model": settings.embeddings_model,
-        "generation": {**DEFAULT_AI_SETTINGS["generation"], **config.get("generation", {})},
-        "retrieval": {**DEFAULT_AI_SETTINGS["retrieval"], **config.get("retrieval", {})},
-        "fine_tuning": {**DEFAULT_AI_SETTINGS["fine_tuning"], **config.get("fine_tuning", {})},
-    }
+    settings = get_settings()
+    data = ai_settings.load(db)
+    return {**data, "llm_model": settings.llm_model, "embedding_model": settings.embeddings_model,
+            "rerank_model": settings.rerank_model if settings.rerank_base_url else None}
 
 
 @router.get("/ai-settings")
