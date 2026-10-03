@@ -1,8 +1,8 @@
 /* DeepDive workflow (Builder → Review & Governance → AI Analysis), AI Accepted Tracker and Readiness Checklist. */
-import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { OpportunityDetail } from "../api/types";
+import type { OpportunityDetail, VersionDetail } from "../api/types";
 import { fmtDate, fmtDateTime } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
 import { belongsTo, OutputCards, OUTPUTS } from "./AnalysisOutputs";
@@ -409,71 +409,110 @@ export function TrackerTab({ opp, workspace, onChanged }:
   );
 }
 
-const READY_TONE: Record<string, string> = {
-  ready: "completed", attention: "changes_requested", in_progress: "submitted", waiting: "ready_for_ai", open: "changes_requested",
-};
-const READY_LABEL: Record<string, string> = {
-  ready: "Ready", attention: "Attention", in_progress: "In progress", waiting: "Waiting", open: "Open",
-};
+/* Readiness Checklist: the same checklist the Presales Lead fills in the DeepDive Builder ("Readiness checklist"
+   step), shown for the selected version: groups of components with their quote and TP status. */
+interface ChecklistRow {
+  item?: string; provider?: string; communicated?: string; quoteRec?: string; tpRec?: string;
+  quoteVal?: string; tpVal?: string; comments?: string;
+}
+const CHECK_COLS: [keyof ChecklistRow, string][] = [
+  ["communicated", "Communicated"], ["quoteRec", "Quote received"], ["tpRec", "TP received"],
+  ["quoteVal", "Quote validated"], ["tpVal", "TP validated"],
+];
+const isYes = (v?: string) => String(v ?? "").trim().toLowerCase() === "yes";
+/** A component is ready once both its quote and its TP are validated. */
+const rowReady = (r: ChecklistRow) => isYes(r.quoteVal) && isYes(r.tpVal);
 
-export function ReadinessTab({ opp }: { opp: OpportunityDetail }) {
-  const readiness = useAsync(() => api.get<{ based_on: number | null; summary: Record<string, number | string>;
-    rows: Record<string, string>[] }>(`/opportunities/${opp.id}/readiness`), [opp.id, opp.current_version]);
+export function ReadinessTab({ opp, versionId }: { opp: OpportunityDetail; versionId?: string | null }) {
+  const vid = versionId ?? opp.current_version_id;
+  const version = useAsync(() => vid
+    ? api.get<VersionDetail>(`/opportunities/${opp.id}/versions/${vid}`) : Promise.resolve(null),
+    [opp.id, vid, opp.updated_at]);
   const [filter, setFilter] = useState("All");
-  const rows = useMemo(() => (readiness.data?.rows ?? []).filter((r) =>
-    filter === "All" || (filter === "Open" ? r.status !== "ready" : filter === "Critical" ? r.status === "open" : r.category === filter)),
-    [readiness.data, filter]);
+  const groups = ((version.data?.data?.groups ?? []) as { name?: string; rows?: ChecklistRow[] }[])
+    .map((g) => ({ name: g.name?.trim() || "Untitled group", rows: (g.rows ?? []).filter((r) => (r.item ?? "").trim() || (r.provider ?? "").trim()) }))
+    .filter((g) => g.rows.length > 0);
+  const all = groups.flatMap((g) => g.rows);
+  const count = (k: keyof ChecklistRow) => all.filter((r) => isYes(r[k] as string)).length;
+  const ready = all.filter(rowReady).length;
+  const pct = all.length ? Math.round((ready / all.length) * 100) : 0;
+  const keep = (r: ChecklistRow) => filter === "All" || (filter === "Open" ? !rowReady(r) : rowReady(r));
 
-  const s = readiness.data?.summary;
   return (
     <>
-      <ErrorAlert error={readiness.error} />
+      <ErrorAlert error={version.error} />
       <div className="panel-head bare">
         <h2 className="section">Readiness Checklist</h2>
         <span className="muted small">
-          {readiness.data?.based_on ? `Based on the latest reviewed version: DeepDive v${readiness.data.based_on}`
-            : "No reviewed version yet"}
+          {version.data ? `From the DeepDive v${version.data.version_number} · Readiness checklist step` : "Loading…"}
         </span>
+        <Link to={`/opportunities/${opp.id}/deepdive`} className="small" style={{ marginLeft: "auto" }}>
+          {version.data && !version.data.is_locked ? "Edit in DeepDive Builder ›" : "Open DeepDive Builder ›"}
+        </Link>
       </div>
-      {s && (
+      {all.length > 0 && (
         <div className="stat-grid" style={{ marginBottom: 14 }}>
-          <div className="stat"><div className="kpi"><div><div className="v">{s.score}%</div><div className="l">Overall readiness</div></div></div></div>
-          <div className="stat"><div className="kpi"><div><div className="l">Technical</div><b>{READY_LABEL[String(s.technical)]}</b></div></div></div>
-          <div className="stat"><div className="kpi"><div><div className="l">Commercial</div><b>{READY_LABEL[String(s.commercial)]}</b></div></div></div>
-          <div className="stat"><div className="kpi"><div><div className="v">{s.clarifications}</div><div className="l">Customer clarifications</div></div></div></div>
-          <div className="stat tone-red"><div className="kpi"><div><div className="v">{s.critical}</div><div className="l">Critical items</div></div></div></div>
+          <div className="stat"><span className="v">{pct}%</span><span className="l">Ready ({ready} of {all.length} components)</span></div>
+          <div className="stat"><span className="v">{count("communicated")}/{all.length}</span><span className="l">Communicated</span></div>
+          <div className="stat"><span className="v">{count("quoteRec")}/{all.length}</span><span className="l">Quotes received</span></div>
+          <div className="stat"><span className="v">{count("tpRec")}/{all.length}</span><span className="l">TPs received</span></div>
+          <div className="stat tone-green"><span className="v">{count("quoteVal")}/{all.length}</span><span className="l">Quotes validated</span></div>
+          <div className="stat tone-green"><span className="v">{count("tpVal")}/{all.length}</span><span className="l">TPs validated</span></div>
         </div>
       )}
-      <section className="card panel">
-        <div className="panel-head">
-          <h2 className="section">Checklist ({rows.length})</h2>
-          <div className="panel-tools">
-            {["All", "Open", "Critical", "Technical", "Commercial", "Customer", "Risk"].map((f) => (
+      {version.loading ? <p className="muted">Loading…</p> : groups.length === 0 ? (
+        <section className="card card-pad">
+          <Empty title="No readiness checklist yet">
+            <p className="muted small">The Presales Lead fills it in the DeepDive Builder, step 6 “Readiness checklist”.</p>
+          </Empty>
+        </section>
+      ) : (
+        <>
+          <div className="panel-tools" style={{ margin: "0 0 10px" }}>
+            {["All", "Open", "Ready"].map((f) => (
               <button key={f} type="button" className={`btn ghost small${filter === f ? " on" : ""}`} onClick={() => setFilter(f)}>{f}</button>
             ))}
           </div>
-        </div>
-        {rows.length === 0 ? <Empty title="Nothing in this filter" /> : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead><tr><th>Category</th><th>Checklist item</th><th>Status</th><th>Evidence</th><th>Owner</th><th>Source</th><th>Updated</th></tr></thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i}>
-                    <td>{r.category}</td>
-                    <td><b>{r.item}</b></td>
-                    <td><span className={`badge st-${READY_TONE[r.status] ?? "draft"}`}>{READY_LABEL[r.status] ?? r.status}</span></td>
-                    <td className="small">{r.evidence}</td>
-                    <td className="small">{r.owner}</td>
-                    <td className="small">{r.source}</td>
-                    <td className="muted small">{fmtDateTime(r.updated)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+          {groups.map((g) => {
+            const rows = g.rows.filter(keep);
+            const gReady = g.rows.filter(rowReady).length;
+            return (
+              <section key={g.name} className="card panel checklist-group">
+                <div className="panel-head">
+                  <h2 className="section">{g.name}</h2>
+                  <span className="muted small">{gReady} of {g.rows.length} ready</span>
+                  <span className="group-bar" aria-hidden="true"><span style={{ width: `${(gReady / g.rows.length) * 100}%` }} /></span>
+                </div>
+                {rows.length === 0 ? <Empty title="Nothing in this filter" /> : (
+                  <div className="table-wrap">
+                    <table className="data checklist">
+                      <thead><tr>
+                        <th>#</th><th>Component</th><th>Provided by</th>
+                        {CHECK_COLS.map(([, label]) => <th key={label}>{label}</th>)}
+                        <th>Comments</th>
+                      </tr></thead>
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={i}>
+                            <td className="muted">{g.rows.indexOf(r) + 1}</td>
+                            <td><b>{r.item || "—"}</b></td>
+                            <td>{r.provider || "—"}</td>
+                            {CHECK_COLS.map(([k]) => {
+                              const v = String(r[k] ?? "").trim();
+                              return <td key={k}>{v ? <span className={`yn ${isYes(v) ? "yes" : "no"}`}>{v}</span> : <span className="muted">—</span>}</td>;
+                            })}
+                            <td className="small">{r.comments || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </>
+      )}
     </>
   );
 }

@@ -236,7 +236,7 @@ export function OpportunityPage() {
         <Route path="tracker" element={workspace
           ? <TrackerTab opp={opp} workspace={workspace} onChanged={() => { void load(); void loadWorkspace(); }} />
           : <p className="muted">Loading…</p>} />
-        <Route path="readiness" element={<ReadinessTab opp={opp} />} />
+        <Route path="readiness" element={<ReadinessTab opp={opp} versionId={selectedVersionId} />} />
         <Route path="deepdive" element={
           <div className="card" style={{ overflow: "hidden", margin: "0 -8px" }}>
             {/* Review & Governance has its own section, so the DeepDive shows its two steps only */}
