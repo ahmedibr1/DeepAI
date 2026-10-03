@@ -5,7 +5,6 @@ import type { OpportunityDetail } from "../api/types";
 import { fmtDate, fmtDateTime } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
 import { belongsTo, OutputCards, OUTPUTS } from "./AnalysisOutputs";
-import { Icon } from "./Icon";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 
 export interface Workspace {
@@ -126,11 +125,8 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
                                 items: open.filter((f) => belongsTo(o, f)) })),
     { key: "other", num: "•", title: "Other findings — Director comments", icon: "review", tone: "grey",
       items: open.filter((f) => !OUTPUTS.some((o) => belongsTo(o, f))) },
-  ].filter((g) => g.items.length > 0);
-  const showDetails = (key: string) => {
-    setOutputKey(key);
-    requestAnimationFrame(() => document.getElementById(`ai-group-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  };
+  ];
+  const details = groups.find((g) => g.key === outputKey) ?? null;
 
   if (!workspace.session_confirmed) {
     return (
@@ -211,55 +207,50 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
       </div>
 
       <h2 className="section out-heading">AI Outputs</h2>
-      <OutputCards analyses={workspace.analyses} findings={workspace.findings} selected={outputKey} onSelect={showDetails} />
+      <OutputCards analyses={workspace.analyses} findings={workspace.findings} selected={outputKey} onSelect={setOutputKey} />
+      {groups[groups.length - 1].items.length > 0 && (
+        <button type="button" className="out-other" onClick={() => setOutputKey("other")}>
+          Other findings — Director comments ({groups[groups.length - 1].items.length}) · View Details ›
+        </button>
+      )}
 
-      <section className="card panel" id="ai-findings" style={{ marginTop: 18 }}>
-        <div className="panel-head">
-          <h2 className="section">Findings by output ({open.length})</h2>
-          <span className="muted small">Every finding carries its evidence. Nothing reaches the DeepDive without acceptance.</span>
-        </div>
-        {groups.length === 0 ? <Empty title="No open findings" /> : (
-          <div className="card-pad finding-groups">
-            {groups.map((g) => (
-              <section key={g.key} id={`ai-group-${g.key}`}
-                className={`finding-group${outputKey === g.key ? " selected" : ""}`}>
-                <header className="finding-group-head">
-                  <span className="out-num">{g.num}</span>
-                  <span className={`out-icon tone-${g.tone}`}><Icon name={g.icon} /></span>
-                  <h3>{g.title}</h3>
-                  <span className="muted small">{g.items.length} {g.items.length === 1 ? "finding" : "findings"}</span>
-                </header>
-                <div className="finding-list">
-                  {g.items.map((f) => (
-                    <article key={f.id} className="finding">
-                      <header>
-                        <span className="chip source">{analysisTitle(f.analysis)}</span>
-                        <span className="chip">{f.type}</span>
-                        <span className={`chip sev-${f.severity}`}>{f.severity}</span>
-                        <b>{f.title}</b>
-                      </header>
-                      <p>{f.description}</p>
-                      <dl className="finding-meta">
-                        <dt>Evidence</dt><dd>{f.evidence}</dd>
-                        <dt>Recommendation</dt><dd>{f.recommendation}</dd>
-                        {f.related_document && <><dt>Document</dt><dd>{f.related_document}</dd></>}
-                        {f.related_requirement && <><dt>Requirement</dt><dd>{f.related_requirement}</dd></>}
-                      </dl>
-                      {workspace.can_accept && (
-                        <div className="row-actions">
-                          <button className="btn primary small" onClick={() => void act(f.id, "accept")}>Accept</button>
-                          <button className="btn ghost small" onClick={() => { setEditing(f); setDraft(f.recommendation); }}>Modify &amp; Accept</button>
-                          <button className="btn ghost small" onClick={() => void act(f.id, "dismiss")}>Dismiss</button>
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
-      </section>
+      {details && !editing && (
+        <Modal wide title={`${details.num}. ${details.title}`} onClose={() => setOutputKey(null)}
+          footer={<button className="btn primary" onClick={() => setOutputKey(null)}>Close</button>}>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            {details.items.length} open {details.items.length === 1 ? "finding" : "findings"} · Every finding carries its
+            evidence. Nothing reaches the DeepDive without acceptance.
+          </p>
+          {details.items.length === 0 ? <Empty title="No open findings" /> : (
+            <div className="finding-list">
+              {details.items.map((f) => (
+                <article key={f.id} className="finding">
+                  <header>
+                    <span className="chip source">{analysisTitle(f.analysis)}</span>
+                    <span className="chip">{f.type}</span>
+                    <span className={`chip sev-${f.severity}`}>{f.severity}</span>
+                    <b>{f.title}</b>
+                  </header>
+                  <p>{f.description}</p>
+                  <dl className="finding-meta">
+                    <dt>Evidence</dt><dd>{f.evidence}</dd>
+                    <dt>Recommendation</dt><dd>{f.recommendation}</dd>
+                    {f.related_document && <><dt>Document</dt><dd>{f.related_document}</dd></>}
+                    {f.related_requirement && <><dt>Requirement</dt><dd>{f.related_requirement}</dd></>}
+                  </dl>
+                  {workspace.can_accept && (
+                    <div className="row-actions">
+                      <button className="btn primary small" onClick={() => void act(f.id, "accept")}>Accept</button>
+                      <button className="btn ghost small" onClick={() => { setEditing(f); setDraft(f.recommendation); }}>Modify &amp; Accept</button>
+                      <button className="btn ghost small" onClick={() => void act(f.id, "dismiss")}>Dismiss</button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
 
       {editing && (
         <Modal title="Modify & Accept" onClose={() => setEditing(null)} footer={<>

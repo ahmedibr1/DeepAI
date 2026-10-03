@@ -28,7 +28,7 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   return <div className="empty"><b>{title}</b>{children}</div>;
 }
 
-export function Modal({ title, children, onClose, footer }: { title: string; children: ReactNode; onClose: () => void; footer: ReactNode }) {
+export function Modal({ title, children, onClose, footer, wide }: { title: string; children: ReactNode; onClose: () => void; footer: ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -39,7 +39,7 @@ export function Modal({ title, children, onClose, footer }: { title: string; chi
   }, [onClose]);
   return (
     <div className="modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={ref}>
+      <div className={`modal${wide ? " wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={ref}>
         <h2 id="modal-title">{title}</h2>
         {children}
         <div className="row">{footer}</div>
