@@ -35,6 +35,14 @@ const STEP_TONE: Record<string, string> = {
 const STEP_LABEL: Record<string, string> = {
   completed: "Completed", in_progress: "In progress", waiting: "Waiting for Review", ready: "Ready", locked: "Locked",
 };
+const INPUT_LABEL: Record<string, string> = {
+  customer: "Customer Documents", tp: "TP", cp: "CP", ta: "TA", quotation: "Quotation", other: "Supporting documents",
+};
+/** "customer:v1 tp:v2" → "DeepDive v1 · Customer Documents v1 · TP v2" (missing optional inputs left out). */
+const describeInputs = (version: number, docs: string) => [`DeepDive v${version}`,
+  ...docs.split(" ").filter(Boolean).map((p) => p.split(":")).filter(([, v]) => v && v !== "-")
+    .map(([k, v]) => `${INPUT_LABEL[k] ?? k} ${v}`)].join(" · ");
+
 const ANALYSIS_TONE: Record<string, string> = {
   not_eligible: "muted", ready: "ok", analyzing: "amber", completed: "ok", reanalysis_required: "amber",
 };
@@ -109,10 +117,11 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
     } catch (e) { setError(e); } finally { setBusy(null); }
   };
 
-  const act = async (id: string, action: "accept" | "dismiss", content?: string) => {
+  const act = async (id: string, action: "accept" | "dismiss" | "restore", content?: string) => {
     try {
       await api.post(`/opportunities/${opp.id}/findings/${id}/${action}`, content ? { content } : {});
-      toast(action === "accept" ? "Accepted — added to the AI Accepted Tracker." : "Dismissed.");
+      toast(action === "accept" ? "Accepted — added to the AI Accepted Tracker."
+        : action === "restore" ? "Restored to the open findings." : "Dismissed.");
       setEditing(null);
       onChanged();
     } catch (e) { setError(e); }
@@ -206,6 +215,35 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
             ))}
           </div>
         )}
+        {(() => {
+          const spec2 = OUTPUTS.find((o) => o.key === details.key);
+          const mine = (st: string) => workspace.findings.filter((f) => f.status === st
+            && (spec2 ? belongsTo(spec2, f) : !OUTPUTS.some((o) => belongsTo(o, f))));
+          const accepted = mine("accepted"); const dismissed = mine("dismissed");
+          return <>
+            {accepted.length > 0 && (
+              <details className="closed-findings">
+                <summary>Accepted ({accepted.length}) — tracked in the AI Accepted Tracker</summary>
+                <ul>{accepted.map((f) => (
+                  <li key={f.id}><span className="chip source">{analysisTitle(f.analysis)}</span> {f.title}</li>
+                ))}</ul>
+              </details>
+            )}
+            {dismissed.length > 0 && (
+              <details className="closed-findings">
+                <summary>Dismissed ({dismissed.length})</summary>
+                <ul>{dismissed.map((f) => (
+                  <li key={f.id}>
+                    <span className="chip source">{analysisTitle(f.analysis)}</span> {f.title}
+                    {workspace.can_accept && (
+                      <button className="btn ghost small" onClick={() => void act(f.id, "restore")}>Restore</button>
+                    )}
+                  </li>
+                ))}</ul>
+              </details>
+            )}
+          </>;
+        })()}
         <nav className="output-page-nav" aria-label="Other outputs">
           {groups.filter((g) => g.key !== details.key && g.items.length > 0).map((g) => (
             <button key={g.key} type="button" className="chip" onClick={() => setOutputKey(g.key)}>
@@ -273,13 +311,13 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
               </ul>
             )}
             <p className="reason">{a.reason}</p>
-            <ul className="outputs">{a.outputs.slice(0, 4).map((o) => <li key={o}>{o}</li>)}</ul>
+            <ul className="outputs">{a.outputs.map((o) => <li key={o}>{o}</li>)}</ul>
             {workspace.can_run_ai && (a.status === "ready" || a.status === "reanalysis_required") && (
               <button className="btn primary small" disabled={busy === a.kind} onClick={() => void run(a.kind)}>
                 {busy === a.kind ? "Analyzing…" : a.status === "ready" ? "Run analysis" : "Analyze changes"}
               </button>
             )}
-            {a.ran_on && <div className="muted small">Ran on DeepDive v{a.ran_on.version} {a.ran_on.docs}</div>}
+            {a.ran_on && <div className="muted small">Ran on {describeInputs(a.ran_on.version, a.ran_on.docs)}</div>}
           </article>
         ))}
       </div>
@@ -341,7 +379,7 @@ export function TrackerTab({ opp, workspace, onChanged }:
               <tr key={t.id}>
                 <td><b>{t.title}</b>{t.related_requirement && <div className="muted small">{t.related_requirement}</div>}</td>
                 <td>{t.type}</td>
-                <td className="small">{t.analysis}</td>
+                <td className="small">{workspace.analyses.find((a) => a.kind === t.analysis)?.title ?? t.analysis}</td>
                 <td className="small">{t.accepted}
                   {t.customer_response && <div className="muted small">Customer: {t.customer_response}</div>}</td>
                 <td className="small">{t.owner || "—"}</td>

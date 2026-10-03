@@ -15,7 +15,7 @@ export const SALES_ROLES: RoleKey[] = ["sales_gm", "sales_director", "account_ma
 
 export const AI_STATUS_LABELS: Record<string, string> = {
   not_analysed: "AI Not Analysed", requested: "AI Analysis Requested",
-  processing: "AI Processing", completed: "AI Completed",
+  processing: "AI Processing", partial: "AI Partially Analysed", completed: "AI Completed",
 };
 
 export const STATUS_LABELS: Record<string, string> = {

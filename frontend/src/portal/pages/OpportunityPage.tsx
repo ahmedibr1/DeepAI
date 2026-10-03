@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { HistoryItem, OpportunityDetail, VersionDetail, VersionSummary, WorkflowAction } from "../api/types";
-import { AiTab } from "../components/AiTab";
+import { AiSummary } from "../components/AnalysisOutputs";
 import { AiAnalysisTab, GovernanceTab, ReadinessTab, StepTrail, TrackerTab, type Workspace } from "../components/WorkspaceTabs";
 import { BuilderHost, type BuilderHandle } from "../components/BuilderHost";
 import { ReviewTab } from "../components/ReviewTab";
@@ -232,7 +232,7 @@ export function OpportunityPage() {
       </nav>
 
       <Routes>
-        <Route index element={<Overview opp={opp} versions={versions} history={history} />} />
+        <Route index element={<Overview opp={opp} versions={versions} history={history} workspace={workspace} />} />
         <Route path="tracker" element={workspace
           ? <TrackerTab opp={opp} workspace={workspace} onChanged={() => { void load(); void loadWorkspace(); }} />
           : <p className="muted">Loading…</p>} />
@@ -257,8 +257,9 @@ export function OpportunityPage() {
           <GovernanceTab opp={opp} />
           <ReviewTab opp={opp} versionId={selectedVersionId} />
         </>} />
-        <Route path="ai" element={<AiTab opp={opp} versionId={selectedVersionId} onChanged={() => void load()} />} />
-        <Route path="ai-recommendations" element={<AiTab opp={opp} versionId={selectedVersionId} onChanged={() => void load()} />} />
+        {/* AI work lives in the DeepDive's AI Analysis step; older links land there. */}
+        <Route path="ai" element={<Navigate to={`/opportunities/${opp.id}/deepdive?step=ai`} replace />} />
+        <Route path="ai-recommendations" element={<Navigate to={`/opportunities/${opp.id}/deepdive?step=ai`} replace />} />
         <Route path="history" element={<>
           <VersionTimeline opp={opp} versions={versions} />
           <div style={{ height: 18 }} />
@@ -333,7 +334,9 @@ export function OpportunityPage() {
 }
 
 /** Overview is the master record: it always shows the latest opportunity information, whatever version is selected. */
-function Overview({ opp, versions, history }: { opp: OpportunityDetail; versions: VersionSummary[]; history: HistoryItem[] }) {
+function Overview({ opp, versions, history, workspace }:
+  { opp: OpportunityDetail; versions: VersionSummary[]; history: HistoryItem[]; workspace: Workspace | null }) {
+  const navigate = useNavigate();
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   useEffect(() => {
     if (!opp.current_version_id) return;
@@ -366,6 +369,26 @@ function Overview({ opp, versions, history }: { opp: OpportunityDetail; versions
         </dl>
       </section>
       <aside style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {workspace && (
+          <section className="card card-pad">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <h2 className="section" style={{ margin: 0 }}>AI Analysis</h2>
+              <Link to={`/opportunities/${opp.id}/deepdive?step=ai`} className="small">Open AI Analysis ›</Link>
+            </div>
+            {workspace.session_confirmed ? (
+              <div style={{ marginTop: 12 }}>
+                <AiSummary analyses={workspace.analyses} findings={workspace.findings}
+                  onOpen={(key) => navigate(`/opportunities/${opp.id}/deepdive?step=ai${key ? `&output=${key}` : ""}`)} />
+              </div>
+            ) : (
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                {workspace.session_version
+                  ? `Opens once the DeepDive session for v${workspace.session_version} is confirmed.`
+                  : "Opens once a DeepDive version is submitted and its session is confirmed."}
+              </p>
+            )}
+          </section>
+        )}
         <section className="card card-pad">
           <h2 className="section">Versions</h2>
           <VersionList opp={opp} versions={versions.slice(0, 4)} compact />

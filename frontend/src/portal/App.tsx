@@ -13,7 +13,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OpportunitiesPage } from "./pages/OpportunitiesPage";
 import { OpportunityPage } from "./pages/OpportunityPage";
-import { AiPlaceholderPage, ReviewsPage } from "./pages/StagePages";
+import { AiRecommendationsPage, ReviewsPage } from "./pages/StagePages";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth();
@@ -44,7 +44,7 @@ export default function App() {
         <Route path="/opportunities/new" element={<RequirePerm any={[PERM.OPP_CREATE]}><CreateOpportunityPage /></RequirePerm>} />
         <Route path="/opportunities/:id/*" element={<OpportunityPage />} />
         <Route path="/reviews" element={<RequirePerm any={[PERM.REVIEW_DECIDE, PERM.DASHBOARD_EXECUTIVE]}><ReviewsPage /></RequirePerm>} />
-        <Route path="/ai-recommendations" element={<RequirePerm any={[PERM.AI_VIEW]}><AiPlaceholderPage kind="recommendations" /></RequirePerm>} />
+        <Route path="/ai-recommendations" element={<RequirePerm any={[PERM.AI_VIEW]}><AiRecommendationsPage /></RequirePerm>} />
         <Route path="/admin/users" element={<RequirePerm any={[PERM.USER_MANAGE]}><UsersPage /></RequirePerm>} />
         <Route path="/admin/portfolios" element={<RequirePerm any={[PERM.TEAM_MANAGE]}><PortfoliosPage /></RequirePerm>} />
         <Route path="/admin/teams" element={<RequirePerm any={[PERM.TEAM_MANAGE]}><PortfoliosPage /></RequirePerm>} />

@@ -358,7 +358,7 @@ table.monitor-table th:nth-child(11){white-space:nowrap}
 .opp-card dd{margin:0;color:var(--ink)}
 .opp-card footer{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px;font-size:12px}
 .ai-chip{border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;background:var(--tint);color:var(--purple)}
-.ai-chip.processing{background:#FFF3DF;color:var(--amber)}
+.ai-chip.processing,.ai-chip.partial{background:#FFF3DF;color:var(--amber)}
 .ai-chip.completed{background:#E3F4E4;color:var(--ok)}
 .ai-chip.not_analysed{background:#F1EEF4;color:#5B5363}
 .stat .note{font-size:11px;color:var(--muted);margin-top:4px}
@@ -699,3 +699,42 @@ html,body{max-width:100%;overflow-x:hidden}
 .output-page-head .out-icon svg{width:32px;height:32px}
 .output-page-nav{display:flex;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px solid var(--line)}
 .output-page-nav .chip{cursor:pointer;border:1px solid var(--line);font:inherit;font-size:12.5px}
+/* AI summary (Overview and AI Recommendations) */
+.ai-summary{display:flex;flex-direction:column;gap:12px}
+.ai-summary-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.verdict{padding:3px 12px;border-radius:999px;font-size:12.5px;font-weight:700;background:#F1EEF4;color:#5B5363}
+.verdict.tone-ok{background:#DDF3E4;color:#0E7A4D}
+.verdict.tone-amber{background:#FFF3DF;color:#B86E00}
+.verdict.tone-red{background:#FFE7EC;color:#B0102F}
+.ai-summary-analyses{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px}
+.ai-summary-analyses li{display:flex;align-items:center;gap:8px;font-size:13px}
+.ai-summary-analyses .an-dot{width:9px;height:9px;border-radius:50%;background:#B9B3C2;flex:none}
+.ai-summary-analyses li.an-completed .an-dot{background:#0E8A5F}
+.ai-summary-analyses li.an-ready .an-dot,.ai-summary-analyses li.an-reanalysis_required .an-dot{background:#F2A900}
+.ai-summary-analyses .muted{margin-left:auto}
+.ai-summary-outputs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ai-summary-outputs button{width:100%;display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;border:0;
+  background:none;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left}
+.ai-summary-outputs button:hover:not(:disabled){background:#F6F2FB}
+.ai-summary-outputs button:disabled{cursor:default}
+.ai-summary-outputs .out-num{width:22px;height:22px;border-radius:6px;font-size:12px}
+.ai-summary-outputs .count{margin-left:auto;font-weight:700;color:var(--purple)}
+.ai-summary-outputs .count em{font-style:normal;color:#B0102F}
+.closed-findings{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff}
+.closed-findings summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--purple)}
+.closed-findings ul{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.closed-findings li{display:flex;align-items:center;gap:8px;font-size:13px}
+.closed-findings li .btn{margin-left:auto}
+/* AI Recommendations page */
+.filter-chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 12px;font:inherit;font-size:12.5px;
+  font-weight:600;color:var(--muted);cursor:pointer}
+.filter-chip.active{background:var(--purple);border-color:var(--purple);color:#fff}
+.analysis-dots{display:inline-flex;gap:4px}
+.analysis-dots span{width:12px;height:12px;border-radius:3px;background:#DDD8E3}
+.analysis-dots .an-completed{background:#0E8A5F}
+.analysis-dots .an-ready,.analysis-dots .an-reanalysis_required{background:#F2A900}
+.sev-text{color:#B0102F;font-weight:700}
+.portfolio-findings{list-style:none;margin:0;padding:0 8px 10px}
+.portfolio-findings button{width:100%;display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;
+  padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:none;font:inherit;color:var(--ink);cursor:pointer}
+.portfolio-findings button:hover{background:#F6F2FB}

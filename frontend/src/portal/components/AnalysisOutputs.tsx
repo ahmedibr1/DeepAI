@@ -43,7 +43,7 @@ export const OUTPUTS: OutputSpec[] = [
     sources: { final: ["Submission Readiness"] }, list: true },
 ];
 
-export const belongsTo = (o: OutputSpec, f: Finding) => (o.sources[f.analysis] ?? []).includes(f.type);
+export const belongsTo = (o: OutputSpec, f: { analysis: string; type: string }) => (o.sources[f.analysis] ?? []).includes(f.type);
 
 const DONE = ["completed", "reanalysis_required"];
 const SEVERITIES: [string, string][] = [["high", "High"], ["medium", "Medium"], ["low", "Low"]];
@@ -107,6 +107,69 @@ export function OutputCards({ analyses, findings, selected, onSelect }: {
           </article>
         );
       })}
+    </div>
+  );
+}
+
+/** One-line verdict for an opportunity's AI work, used on the Overview and the AI Recommendations page. */
+export function aiVerdict(analyses: Analysis[], findings: Finding[]): { tone: string; label: string } {
+  const open = findings.filter((f) => f.status === "open");
+  const done = analyses.filter((a) => DONE.includes(a.status));
+  if (done.length === 0) {
+    if (analyses.some((a) => a.status === "ready")) return { tone: "amber", label: "Ready to analyse" };
+    return { tone: "muted", label: "Not started" };
+  }
+  if (open.some((f) => f.severity === "high")) return { tone: "red", label: "Action needed" };
+  const final = analyses.find((a) => a.kind === "final");
+  if (final?.status === "completed" && open.length === 0) return { tone: "ok", label: "Ready to submit" };
+  if (final?.status === "completed") return { tone: "ok", label: "Ready with actions" };
+  return { tone: "amber", label: "In progress" };
+}
+
+const ANALYSIS_SHORT: Record<string, string> = {
+  not_eligible: "Waiting for documents", ready: "Ready to run", analyzing: "Analyzing",
+  completed: "Completed", reanalysis_required: "Re-analysis required",
+};
+
+/** Compact AI status for one opportunity: the four analyses, the open findings per output and the verdict. */
+export function AiSummary({ analyses, findings, onOpen }: {
+  analyses: Analysis[]; findings: Finding[]; onOpen?: (output?: string) => void;
+}) {
+  const open = findings.filter((f) => f.status === "open");
+  const verdict = aiVerdict(analyses, findings);
+  return (
+    <div className="ai-summary">
+      <div className="ai-summary-head">
+        <span className={`verdict tone-${verdict.tone}`}>{verdict.label}</span>
+        <span className="muted small">
+          {analyses.filter((a) => DONE.includes(a.status)).length} of {analyses.length} analyses · {open.length} open findings
+        </span>
+      </div>
+      <ul className="ai-summary-analyses">
+        {analyses.map((a) => (
+          <li key={a.kind} className={`an-${a.status}`}>
+            <span className="an-dot" aria-hidden="true" /><b>{a.title}</b>
+            <span className="muted small">{ANALYSIS_SHORT[a.status] ?? a.status}</span>
+          </li>
+        ))}
+      </ul>
+      {open.length > 0 && (
+        <ul className="ai-summary-outputs">
+          {OUTPUTS.map((o, i) => {
+            const mine = open.filter((f) => belongsTo(o, f));
+            if (!mine.length) return null;
+            const high = mine.filter((f) => f.severity === "high").length;
+            return (
+              <li key={o.key}>
+                <button type="button" onClick={() => onOpen?.(o.key)} disabled={!onOpen}>
+                  <span className="out-num">{i + 1}</span>{o.title}
+                  <span className="count">{mine.length}{high ? <em> · {high} high</em> : null}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

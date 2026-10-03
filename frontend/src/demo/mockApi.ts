@@ -222,8 +222,12 @@ function getOpp(u: DUser, id: string): DOpp {
 }
 const isReviewer = (u: DUser, _o: DOpp) => MANAGEMENT_ROLES.includes(u.role) || u.role === "admin";
 const canDelete = (u: DUser, o: DOpp) => (u.role === "presales_account" ? o.owner_id === u.id : true);
-const aiStatus = (o: DOpp) => (o.status === "ai_analysis" ? "processing"
-  : o.status === "ready_for_ai" ? "requested" : o.ai_readiness ? "completed" : "not_analysed");
+const aiStatus = (o: DOpp) => {
+  const done = new Set((db.analyses ?? []).filter((a) => a.opportunity_id === o.id && a.status === "completed").map((a) => a.kind));
+  if (done.size >= 4) return "completed";
+  if (done.size > 0) return "partial";
+  return o.status === "ai_analysis" ? "processing" : o.status === "ready_for_ai" ? "requested" : "not_analysed";
+};
 // The owner and any management role may edit an open version; a submitted version is locked for everyone.
 const canEdit = (u: DUser, o: DOpp, v: DVersion) =>
   ((u.role === "presales_account" && o.owner_id === u.id) || MANAGEMENT_ROLES.includes(u.role) || u.role === "admin")
@@ -276,6 +280,18 @@ const reviewerOf = (oppId: string, versionId: string) => {
   const d = db.decisions.find((x) => x.opportunity_id === oppId && x.version_id === versionId && !!x.decided_at);
   return d ? user(d.reviewer_id)?.full_name ?? null : null;
 };
+
+/** The four analyses of an opportunity, as the workspace shows them for its latest reviewed version. */
+function analysesFor(o: DOpp) {
+  const reviewed = versionsOf(o.id).sort((a, b) => b.version_number - a.version_number).find((v) => v.is_locked) ?? null;
+  const docs = reviewed ? activeDocs(o.id, reviewed.id)
+    .map((d) => ({ category: d.category, file_name: d.file_name, doc_version: d.doc_version })) : [];
+  const runs: Record<string, { version_number: number; inputs: string; status: string }> = {};
+  (db.analyses ?? []).filter((a) => a.opportunity_id === o.id).forEach((a) => {
+    runs[a.kind] = { version_number: a.version_number, inputs: a.inputs, status: a.status };
+  });
+  return eligibility({ reviewed: reviewed ? { version_number: reviewed.version_number } : null, docs, runs });
+}
 
 /** Readiness of the latest reviewed version, built from the analyses, the tracker and the DeepDive. */
 function readinessFor(o: DOpp) {
@@ -962,9 +978,9 @@ const routes: [string, RegExp, Handler][] = [
           detail: sessionConfirmed ? `Session confirmed for v${reviewedVersion!.version_number}`
             : current?.is_locked ? "Waiting for the DeepDive session" : "Submit a version to start the review" },
         { key: "ai", title: "AI Analysis",
-          status: sessionConfirmed ? "ready" : "locked",
+          status: !sessionConfirmed ? "locked" : analyses.every((a) => a.status === "completed") ? "completed" : "ready",
           detail: sessionConfirmed
-            ? `Session confirmed for v${reviewedVersion!.version_number} by ${user(o.session_confirmed_by ?? null)?.full_name ?? ""} · ${analyses.filter((a) => a.status === "ready").length} analysis ready`
+            ? `Session confirmed for v${reviewedVersion!.version_number} by ${user(o.session_confirmed_by ?? null)?.full_name ?? ""} · ${analyses.filter((a) => a.status === "completed").length} of ${analyses.length} analyses completed${(() => { const n = analyses.filter((a) => a.status === "ready" || a.status === "reanalysis_required").length; return n ? ` · ${n} ready to run` : ""; })()}`
             : reviewedVersion
               ? `Locked until the DeepDive session for v${reviewedVersion.version_number} is done`
               : "Locked until the DeepDive session is done" },
@@ -1042,6 +1058,13 @@ const routes: [string, RegExp, Handler][] = [
     audit("ai.analysis_completed", { entity_type: "ai_analysis", opportunity_id: o.id,
       details: { kind, version: reviewed!.version_number, findings: produced.length } });
     o.ai_readiness = "ready_with_actions";
+    // The first completed analysis moves the opportunity on from "Ready for AI".
+    if (o.status === "ready_for_ai") {
+      o.status = "ai_recommendations"; o.updated_at = now();
+      db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: reviewed!.id, action: "ai_completed",
+        from_status: "ready_for_ai", to_status: "ai_recommendations", actor_id: u.id,
+        comment: `${analysesFor(o).find((a) => a.kind === kind)?.title ?? kind} completed`, created_at: now() });
+    }
     persist();
     return { kind, findings: produced.length };
   }],
@@ -1072,6 +1095,27 @@ const routes: [string, RegExp, Handler][] = [
     f!.status = "dismissed";
     persist();
     return { ok: true };
+  }],
+  ["POST", /^\/opportunities\/([^/]+)\/findings\/([^/]+)\/restore$/, (m) => {
+    const u = requireUser(); getOpp(u, m[1]);
+    const f = (db.findings ?? []).find((x) => x.id === m[2]);
+    if (!f) err(404, "Finding not found.");
+    if (f!.status !== "dismissed") err(409, "Only a dismissed finding can be restored.");
+    f!.status = "open";
+    persist();
+    return { ok: true };
+  }],
+  // AI Recommendations: every visible opportunity with its analyses and open findings, for the portfolio view.
+  ["GET", /^\/ai\/portfolio$/, () => {
+    const u = requireUser();
+    return visible(u).filter((o) => !o.is_archived).map((o) => ({
+      id: o.id, opportunity_number: o.opportunity_number, title: o.title, account_name: o.account_name,
+      owner: user(o.owner_id)?.full_name ?? null, status: o.status, status_label: STATUS_LABELS[o.status],
+      submission_date: String((versionsOf(o.id).find((v) => v.id === o.current_version_id)?.data ?? {}).submissionDate ?? "").slice(0, 10) || null,
+      analyses: analysesFor(o).map((a) => ({ kind: a.kind, title: a.title, status: a.status, missing: a.missing })),
+      findings: (db.findings ?? []).filter((f) => findingOpp(f.id) === o.id)
+        .map((f) => ({ id: f.id, analysis: f.analysis, type: f.type, severity: f.severity, title: f.title, status: f.status })),
+    }));
   }],
   ["POST", /^\/opportunities\/([^/]+)\/tracker\/([^/]+)\/response$/, (m, body) => {
     const u = requireUser(); getOpp(u, m[1]);
