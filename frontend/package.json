@@ -1,0 +1,29 @@
+{
+  "name": "presales-portal-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "build:offline": "vite build --config vite.offline.config.ts",
+    "preview": "vite preview --port 4173",
+    "build:demo": "npm run build:offline && node scripts/gen-demo-builder.mjs && vite build --config vite.demo.config.ts"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "pptxgenjs": "^4.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.6",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}

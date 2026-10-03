@@ -1,0 +1,89 @@
+# Presales DeepDive Portal — Helm values
+# Phase 1 deploys: web, api, migration job. AI components ship disabled until Phase 3.
+
+global:
+  imageRegistry: registry.internal.example        # your private registry (air-gapped friendly)
+  imagePullSecrets: []                            # e.g. [{name: regcred}]
+
+ingress:
+  enabled: true
+  className: nginx                                # Rancher RKE2 ships ingress-nginx
+  host: deepdive.internal.example
+  tls:
+    enabled: true
+    secretName: presales-portal-tls               # issued by cert-manager (internal CA) or provided
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "110m"   # document uploads (Phase 2)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    # cert-manager.io/cluster-issuer: internal-ca
+
+web:
+  image: { repository: presales-portal/web, tag: "1.0.0", pullPolicy: IfNotPresent }
+  replicas: 2
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 500m, memory: 256Mi } }
+
+api:
+  image: { repository: presales-portal/api, tag: "1.0.0", pullPolicy: IfNotPresent }
+  replicas: 2
+  resources: { requests: { cpu: 250m, memory: 384Mi }, limits: { cpu: "2", memory: 1Gi } }
+  env:
+    PORTAL_ENVIRONMENT: production
+    PORTAL_COOKIE_SECURE: "true"
+    PORTAL_SESSION_MINUTES: "60"
+    PORTAL_LOGIN_MAX_ATTEMPTS: "5"
+    PORTAL_LOCKOUT_MINUTES: "15"
+    PORTAL_RETENTION_DAYS: "0"
+  # Kubernetes Secret holding PORTAL_DATABASE_URL and PORTAL_JWT_SECRET (never in values files).
+  existingSecret: presales-portal-secrets
+
+documents:
+  # "local" keeps uploads on a PersistentVolume (simplest on-prem); "s3" uses any S3-compatible service.
+  backend: local
+  maxUploadMb: 100
+  pvc: { size: 100Gi, storageClass: longhorn, accessMode: ReadWriteMany }
+  s3: { endpointUrl: "", bucket: presales-portal-documents, region: us-east-1, credentialsSecret: presales-portal-s3 }
+
+migrations:
+  enabled: true      # runs "alembic upgrade head" as a pre-install/pre-upgrade hook
+
+postgres:
+  # Recommended: CloudNativePG operator (HA, PITR backups to S3). Set false to use an existing database.
+  cnpg:
+    enabled: true
+    instances: 3
+    imageName: ghcr.io/cloudnative-pg/postgresql:16    # mirror internally; pgvector image needed from Phase 3
+    storage: { size: 50Gi, storageClass: longhorn }
+    backup:
+      enabled: false
+      destinationPath: s3://presales-portal-backups/
+      endpointURL: https://s3.internal.example
+      credentialsSecret: presales-portal-backup-s3
+
+networkPolicy:
+  enabled: true
+  # Namespace label of the ingress controller allowed to reach web/api
+  ingressNamespaceLabel: { kubernetes.io/metadata.name: kube-system }
+
+ai:
+  enabled: false     # Phase 3
+  gpuNodeSelector: { nvidia.com/gpu.present: "true" }
+  llm:
+    image: { repository: vllm/vllm-openai, tag: "v0.11.0" }   # pin + mirror the version you validate
+    model: Qwen/Qwen3.8-27B            # Apache-2.0, 262K native context; weights pre-loaded on the PVC, never downloaded at runtime
+    quantization: fp8                  # ~28 GB weights on the 96 GB card, leaving room for long-RFP KV cache
+    servedModelName: deepdive-llm
+    maxModelLen: 131072
+    gpuMemoryUtilization: "0.82"
+    modelsPvc: { size: 200Gi, storageClass: longhorn }
+    resources: { limits: { nvidia.com/gpu: 1, memory: 64Gi }, requests: { cpu: "4", memory: 48Gi } }
+  embeddings:
+    image: { repository: vllm/vllm-openai, tag: "v0.11.0" }
+    model: Qwen/Qwen3-Embedding-4B     # multilingual (Arabic/English); fallback BAAI/bge-m3 — decide with the Arabic bake-off
+    dimensions: 1024                   # Matryoshka truncation keeps pgvector HNSW indexable (vector type ≤ 2000 dims)
+    gpuMemoryUtilization: "0.08"
+    # Shares the single RTX PRO 6000 with the LLM via NVIDIA GPU Operator time-slicing (replicas: 2).
+    resources: { limits: { nvidia.com/gpu: 1, memory: 12Gi }, requests: { cpu: "1", memory: 6Gi } }
+  worker:
+    # The worker runs from the API image (same code, different entry point).
+    replicas: 1
+    resources: { requests: { cpu: "1", memory: 2Gi }, limits: { cpu: "4", memory: 8Gi } }

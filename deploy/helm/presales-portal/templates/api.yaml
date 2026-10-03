@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pp.fullname" . }}-api
+  labels:
+    {{- include "pp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pp.selector" (dict "root" . "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pp.selector" (dict "root" . "component" "api") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- include "pp.podSecurity" . | nindent 6 }}
+      automountServiceAccountToken: false
+      containers:
+        - name: api
+          image: {{ include "pp.image" (dict "root" . "image" .Values.api.image) }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom:
+            - configMapRef: { name: {{ include "pp.fullname" . }}-api }
+            - secretRef: { name: {{ .Values.api.existingSecret }} }
+          {{- include "pp.containerSecurity" . | nindent 10 }}
+          env:
+            - { name: PORTAL_STORAGE_BACKEND, value: {{ .Values.documents.backend | quote }} }
+            - { name: PORTAL_MAX_UPLOAD_MB, value: {{ .Values.documents.maxUploadMb | quote }} }
+            {{- if eq .Values.documents.backend "local" }}
+            - { name: PORTAL_LOCAL_STORAGE_PATH, value: /var/lib/portal/documents }
+            {{- else }}
+            - { name: PORTAL_S3_ENDPOINT_URL, value: {{ .Values.documents.s3.endpointUrl | quote }} }
+            - { name: PORTAL_S3_BUCKET, value: {{ .Values.documents.s3.bucket | quote }} }
+            - { name: PORTAL_S3_REGION, value: {{ .Values.documents.s3.region | quote }} }
+            {{- end }}
+          {{- if ne .Values.documents.backend "local" }}
+          envFrom:
+            - secretRef: { name: {{ .Values.documents.s3.credentialsSecret }} }
+          {{- end }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            {{- if eq .Values.documents.backend "local" }}
+            - { name: documents, mountPath: /var/lib/portal/documents }
+            {{- end }}
+          readinessProbe: { httpGet: { path: /api/health/ready, port: http }, periodSeconds: 10, timeoutSeconds: 3 }
+          livenessProbe: { httpGet: { path: /api/health/live, port: http }, periodSeconds: 20, timeoutSeconds: 3 }
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        {{- if eq .Values.documents.backend "local" }}
+        - { name: documents, persistentVolumeClaim: { claimName: {{ include "pp.fullname" . }}-documents } }
+        {{- end }}
+---
+{{- if eq .Values.documents.backend "local" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pp.fullname" . }}-documents
+spec:
+  accessModes: [{{ .Values.documents.pvc.accessMode }}]
+  storageClassName: {{ .Values.documents.pvc.storageClass }}
+  resources: { requests: { storage: {{ .Values.documents.pvc.size }} } }
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pp.fullname" . }}-api
+  labels:
+    {{- include "pp.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "pp.selector" (dict "root" . "component" "api") | nindent 4 }}
+  ports: [{ name: http, port: 8000, targetPort: http }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pp.fullname" . }}-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "pp.selector" (dict "root" . "component" "api") | nindent 6 }}

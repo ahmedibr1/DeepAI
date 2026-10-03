@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pp.fullname" . }}-web
+  labels:
+    {{- include "pp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pp.selector" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pp.selector" (dict "root" . "component" "web") | nindent 8 }}
+    spec:
+      {{- include "pp.podSecurity" . | nindent 6 }}
+      automountServiceAccountToken: false
+      containers:
+        - name: web
+          image: {{ include "pp.image" (dict "root" . "image" .Values.web.image) }}
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          ports: [{ name: http, containerPort: 8080 }]
+          {{- include "pp.containerSecurity" . | nindent 10 }}
+          volumeMounts:
+            - { name: cache, mountPath: /var/cache/nginx }
+            - { name: run, mountPath: /tmp }
+          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 30 }
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+      volumes:
+        - { name: cache, emptyDir: {} }
+        - { name: run, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pp.fullname" . }}-web
+  labels:
+    {{- include "pp.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "pp.selector" (dict "root" . "component" "web") | nindent 4 }}
+  ports: [{ name: http, port: 8080, targetPort: http }]

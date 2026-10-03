@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepDive Builder — solutions by stc</title>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><b>DeepDive Builder</b><span>solutions by stc</span></div>
+  <input type="file" id="fileIn" class="vh" accept=".pptx,.xlsx,.json"><label for="fileIn" class="btnlike" title="Open a DeepDive PowerPoint, an Excel sheet or a saved draft">Open</label>
+  <button type="button" id="btnSave">Save draft</button>
+  <button type="button" id="btnExample">Load example</button>
+  <button type="button" id="btnClear">Clear form</button>
+  
+</header>
+<div class="shell">
+  <nav class="steps" aria-label="Steps"><ol id="stepList"></ol></nav>
+  <main><div class="panel" id="panel"></div></main>
+</div>
+<div class="bar"><div class="bar-in">
+  <button type="button" class="btn ghost" id="btnBack">Back</button>
+  <button type="button" class="btn primary" id="btnNext">Next</button>
+  <span class="status" id="saveState"></span>
+</div></div>
+<input type="file" id="xlsxIn" class="vh" accept=".xlsx">
+<div class="modal-back" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalText"><div class="modal"><p id="modalText"></p><div class="row"><button type="button" class="btn ghost" id="modalNo">Cancel</button><button type="button" class="btn ghost" id="modalAlt" hidden>Alt</button><button type="button" class="btn primary" id="modalYes">Continue</button></div></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/src/builder/app.js"></script>
+</body>
+</html>

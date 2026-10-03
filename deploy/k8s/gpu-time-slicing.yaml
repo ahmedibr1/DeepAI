@@ -1,0 +1,16 @@
+# NVIDIA GPU Operator: let the LLM and the embedding server share the single RTX PRO 6000.
+# Time-slicing has no memory isolation, so each vLLM instance caps itself with --gpu-memory-utilization
+# (LLM 0.82 + embeddings 0.08 of 96 GB). Apply, then set devicePlugin.config.name=time-slicing in the ClusterPolicy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: time-slicing
+  namespace: gpu-operator
+data:
+  any: |-
+    version: v1
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: 2

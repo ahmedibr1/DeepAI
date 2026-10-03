@@ -1,0 +1,71 @@
+{{- if .Values.ai.enabled }}
+# Local LLM served by vLLM (OpenAI-compatible API, JSON-schema guided decoding). Weights come from a
+# pre-loaded PVC; HF_HUB_OFFLINE prevents any runtime download.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pp.fullname" . }}-models
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.ai.llm.modelsPvc.storageClass }}
+  resources: { requests: { storage: {{ .Values.ai.llm.modelsPvc.size }} } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pp.fullname" . }}-llm
+  labels:
+    {{- include "pp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: llm
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels:
+      {{- include "pp.selector" (dict "root" . "component" "llm") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pp.selector" (dict "root" . "component" "llm") | nindent 8 }}
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.ai.gpuNodeSelector | nindent 8 }}
+      automountServiceAccountToken: false
+      containers:
+        - name: vllm
+          image: {{ include "pp.image" (dict "root" . "image" .Values.ai.llm.image) }}
+          args:
+            - --model=/models/{{ .Values.ai.llm.model }}
+            - --served-model-name={{ .Values.ai.llm.servedModelName }}
+            - --max-model-len={{ .Values.ai.llm.maxModelLen }}
+            - --gpu-memory-utilization={{ .Values.ai.llm.gpuMemoryUtilization }}
+            {{- with .Values.ai.llm.quantization }}
+            - --quantization={{ . }}
+            {{- end }}
+            - --enable-prefix-caching
+            - --host=0.0.0.0
+            - --port=8000
+          env:
+            - { name: HF_HUB_OFFLINE, value: "1" }
+            - { name: VLLM_NO_USAGE_STATS, value: "1" }
+            - { name: DO_NOT_TRACK, value: "1" }
+          ports: [{ name: http, containerPort: 8000 }]
+          readinessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 15, failureThreshold: 60 }
+          resources:
+            {{- toYaml .Values.ai.llm.resources | nindent 12 }}
+          volumeMounts:
+            - { name: models, mountPath: /models, readOnly: true }
+            - { name: shm, mountPath: /dev/shm }
+      volumes:
+        - { name: models, persistentVolumeClaim: { claimName: {{ include "pp.fullname" . }}-models } }
+        - { name: shm, emptyDir: { medium: Memory, sizeLimit: 16Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pp.fullname" . }}-llm
+spec:
+  selector:
+    {{- include "pp.selector" (dict "root" . "component" "llm") | nindent 4 }}
+  ports: [{ name: http, port: 8000, targetPort: http }]
+{{- end }}

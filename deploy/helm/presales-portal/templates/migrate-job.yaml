@@ -1,0 +1,32 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pp.fullname" . }}-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "pp.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        {{- include "pp.selector" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "pp.podSecurity" . | nindent 6 }}
+      automountServiceAccountToken: false
+      containers:
+        - name: migrate
+          image: {{ include "pp.image" (dict "root" . "image" .Values.api.image) }}
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - secretRef: { name: {{ .Values.api.existingSecret }} }
+          env: [{ name: PORTAL_ENVIRONMENT, value: production }]
+          {{- include "pp.containerSecurity" . | nindent 10 }}
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes: [{ name: tmp, emptyDir: {} }]
+{{- end }}

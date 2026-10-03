@@ -1,0 +1,6 @@
+apiVersion: v2
+name: presales-portal
+description: Presales DeepDive Portal (web, API, migrations) with optional on-prem AI stack (vLLM, embeddings, AI worker)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

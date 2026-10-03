@@ -1,0 +1,8 @@
+Presales DeepDive Portal {{ .Chart.AppVersion }} deployed.
+
+URL: https://{{ .Values.ingress.host }}
+
+First-time setup:
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "pp.fullname" . }}-api -- \
+    env PORTAL_BOOTSTRAP_ADMIN_USERNAME=admin PORTAL_BOOTSTRAP_ADMIN_PASSWORD='<temporary>' python -m scripts.bootstrap_admin
+The admin must change that password at first sign-in.

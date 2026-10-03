@@ -1,0 +1,94 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default deny for the namespace, then only the flows the portal needs.
+# Nothing in this namespace may reach the internet: customer documents never leave the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pp.fullname" . }}-default-deny
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pp.fullname" . }}-allow-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ namespaceSelector: {}, podSelector: { matchLabels: { k8s-app: kube-dns } } }]
+      ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pp.fullname" . }}-ingress-to-web-api
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/component, operator: In, values: [web, api] }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceLabel | nindent 14 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pp.fullname" . }}-app-to-postgres
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/component, operator: In, values: [api, migrate, ai-worker] }
+  policyTypes: [Egress]
+  egress:
+    - to: [{ podSelector: { matchLabels: { cnpg.io/cluster: {{ include "pp.fullname" . }}-db } } }]
+      ports: [{ protocol: TCP, port: 5432 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pp.fullname" . }}-postgres-from-app
+spec:
+  podSelector: { matchLabels: { cnpg.io/cluster: {{ include "pp.fullname" . }}-db } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/component, operator: In, values: [api, migrate, ai-worker] }
+        - podSelector: { matchLabels: { cnpg.io/cluster: {{ include "pp.fullname" . }}-db } }   # replication
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cnpg-system } }       # operator
+{{- if .Values.ai.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pp.fullname" . }}-worker-to-models
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/component: ai-worker } }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/component, operator: In, values: [llm, embeddings] }
+      ports: [{ protocol: TCP, port: 8000 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pp.fullname" . }}-models-from-worker
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/component, operator: In, values: [llm, embeddings] }
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{ podSelector: { matchLabels: { app.kubernetes.io/component: ai-worker } } }]
+      ports: [{ protocol: TCP, port: 8000 }]
+{{- end }}
+{{- end }}

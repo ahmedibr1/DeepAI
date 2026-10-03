@@ -1,0 +1,13 @@
+.demo-bar{position:fixed;right:16px;bottom:16px;z-index:70;width:min(380px,calc(100vw - 32px));
+  background:var(--purple-deep);color:#fff;border-radius:14px;box-shadow:0 18px 40px rgba(42,0,73,.35);overflow:hidden}
+.demo-toggle{width:100%;border:0;background:transparent;color:#fff;font-weight:700;padding:11px 16px;cursor:pointer;text-align:left;font-size:13px}
+.demo-bar.open .demo-toggle{border-bottom:1px solid rgba(255,255,255,.18)}
+.demo-body{padding:12px 16px 16px;font-size:12.5px;max-height:60vh;overflow:auto}
+.demo-body p{margin:0 0 10px;color:#E9DFF4;line-height:1.45}
+.demo-body p.tip{margin-top:10px}
+.demo-body code{background:rgba(255,255,255,.14);border-radius:5px;padding:1px 5px;color:#fff}
+.demo-body table{width:100%;border-collapse:collapse}
+.demo-body td{padding:3px 6px 3px 0;vertical-align:top}
+.demo-body td.role{color:#CDB8E6;text-align:right;white-space:nowrap}
+.demo-body .btn{margin-top:12px;background:#fff;border-color:#fff;color:var(--purple)}
+@media (max-width:1000px){.demo-bar{right:8px;bottom:8px;width:calc(100vw - 16px)}}

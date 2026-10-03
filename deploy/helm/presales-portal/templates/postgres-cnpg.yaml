@@ -1,0 +1,31 @@
+{{- if .Values.postgres.cnpg.enabled }}
+# Requires the CloudNativePG operator (install from Rancher Apps or the CNPG Helm chart).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "pp.fullname" . }}-db
+  labels:
+    {{- include "pp.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgres.cnpg.instances }}
+  imageName: {{ .Values.postgres.cnpg.imageName }}
+  storage:
+    size: {{ .Values.postgres.cnpg.storage.size }}
+    storageClass: {{ .Values.postgres.cnpg.storage.storageClass }}
+  bootstrap:
+    initdb: { database: portal, owner: portal }
+  postgresql:
+    parameters:
+      log_statement: ddl
+      password_encryption: scram-sha-256
+  {{- if .Values.postgres.cnpg.backup.enabled }}
+  backup:
+    retentionPolicy: 30d
+    barmanObjectStore:
+      destinationPath: {{ .Values.postgres.cnpg.backup.destinationPath }}
+      endpointURL: {{ .Values.postgres.cnpg.backup.endpointURL }}
+      s3Credentials:
+        accessKeyId: { name: {{ .Values.postgres.cnpg.backup.credentialsSecret }}, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: {{ .Values.postgres.cnpg.backup.credentialsSecret }}, key: SECRET_ACCESS_KEY }
+  {{- end }}
+{{- end }}
