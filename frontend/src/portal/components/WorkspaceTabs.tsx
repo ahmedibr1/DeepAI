@@ -1,10 +1,12 @@
 /* DeepDive workflow (Builder → Review & Governance → AI Analysis), AI Accepted Tracker and Readiness Checklist. */
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { OpportunityDetail } from "../api/types";
 import { fmtDate, fmtDateTime } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
 import { belongsTo, OutputCards, OUTPUTS } from "./AnalysisOutputs";
+import { Icon } from "./Icon";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 
 export interface Workspace {
@@ -116,7 +118,15 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
     } catch (e) { setError(e); }
   };
 
-  const [outputKey, setOutputKey] = useState<string | null>(null);
+  // An output's findings open as their own page (?step=ai&output=<key>), so the browser Back button returns.
+  const [search, setSearch] = useSearchParams();
+  const outputKey = search.get("output");
+  const setOutputKey = (key: string | null) => {
+    const next = new URLSearchParams(search);
+    if (key) next.set("output", key); else next.delete("output");
+    setSearch(next);
+    window.scrollTo({ top: 0 });
+  };
   const open = workspace.findings.filter((f) => f.status === "open");
   const analysisTitle = (kind: string) => workspace.analyses.find((a) => a.kind === kind)?.title ?? kind;
   // Findings grouped under the output card they belong to, in card order; anything unmapped goes last.
@@ -147,6 +157,74 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
             : <p className="muted small">Waiting for the Presales Director or Presales Manager to confirm.</p>}
         </section>
       </>
+    );
+  }
+
+  if (details) {
+    const spec = OUTPUTS.find((o) => o.key === details.key);
+    return (
+      <div className="output-page">
+        <ErrorAlert error={error} />
+        <button type="button" className="out-back" onClick={() => setOutputKey(null)}>
+          <Icon name="back" /> AI Analysis · AI Outputs
+        </button>
+        <header className="output-page-head">
+          <span className="out-num">{details.num}</span>
+          <span className={`out-icon tone-${details.tone}`}><Icon name={details.icon} /></span>
+          <div>
+            <h2>{details.title}</h2>
+            {spec && <p className="out-desc">{spec.description}</p>}
+          </div>
+          <span className="muted small">{details.items.length} open {details.items.length === 1 ? "finding" : "findings"}</span>
+        </header>
+        <p className="muted small">Every finding carries its evidence. Nothing reaches the DeepDive without acceptance.</p>
+        {details.items.length === 0 ? <Empty title="No open findings" /> : (
+          <div className="finding-list">
+            {details.items.map((f) => (
+              <article key={f.id} className="finding">
+                <header>
+                  <span className="chip source">{analysisTitle(f.analysis)}</span>
+                  <span className="chip">{f.type}</span>
+                  <span className={`chip sev-${f.severity}`}>{f.severity}</span>
+                  <b>{f.title}</b>
+                </header>
+                <p>{f.description}</p>
+                <dl className="finding-meta">
+                  <dt>Evidence</dt><dd>{f.evidence}</dd>
+                  <dt>Recommendation</dt><dd>{f.recommendation}</dd>
+                  {f.related_document && <><dt>Document</dt><dd>{f.related_document}</dd></>}
+                  {f.related_requirement && <><dt>Requirement</dt><dd>{f.related_requirement}</dd></>}
+                </dl>
+                {workspace.can_accept && (
+                  <div className="row-actions">
+                    <button className="btn primary small" onClick={() => void act(f.id, "accept")}>Accept</button>
+                    <button className="btn ghost small" onClick={() => { setEditing(f); setDraft(f.recommendation); }}>Modify &amp; Accept</button>
+                    <button className="btn ghost small" onClick={() => void act(f.id, "dismiss")}>Dismiss</button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+        <nav className="output-page-nav" aria-label="Other outputs">
+          {groups.filter((g) => g.key !== details.key && g.items.length > 0).map((g) => (
+            <button key={g.key} type="button" className="chip" onClick={() => setOutputKey(g.key)}>
+              {g.num}. {g.title} ({g.items.length})
+            </button>
+          ))}
+        </nav>
+      {editing && (
+        <Modal title="Modify & Accept" onClose={() => setEditing(null)} footer={<>
+          <button className="btn ghost" onClick={() => setEditing(null)}>Cancel</button>
+          <button className="btn primary" disabled={draft.trim().length < 5} onClick={() => void act(editing.id, "accept", draft)}>
+            Accept with changes
+          </button>
+        </>}>
+          <p className="muted small">{editing.title}</p>
+          <textarea rows={6} value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Accepted content" />
+        </Modal>
+      )}
+      </div>
     );
   }
 
@@ -212,44 +290,6 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
         <button type="button" className="out-other" onClick={() => setOutputKey("other")}>
           Other findings — Director comments ({groups[groups.length - 1].items.length}) · View Details ›
         </button>
-      )}
-
-      {details && !editing && (
-        <Modal wide title={`${details.num}. ${details.title}`} onClose={() => setOutputKey(null)}
-          footer={<button className="btn primary" onClick={() => setOutputKey(null)}>Close</button>}>
-          <p className="muted small" style={{ marginTop: 0 }}>
-            {details.items.length} open {details.items.length === 1 ? "finding" : "findings"} · Every finding carries its
-            evidence. Nothing reaches the DeepDive without acceptance.
-          </p>
-          {details.items.length === 0 ? <Empty title="No open findings" /> : (
-            <div className="finding-list">
-              {details.items.map((f) => (
-                <article key={f.id} className="finding">
-                  <header>
-                    <span className="chip source">{analysisTitle(f.analysis)}</span>
-                    <span className="chip">{f.type}</span>
-                    <span className={`chip sev-${f.severity}`}>{f.severity}</span>
-                    <b>{f.title}</b>
-                  </header>
-                  <p>{f.description}</p>
-                  <dl className="finding-meta">
-                    <dt>Evidence</dt><dd>{f.evidence}</dd>
-                    <dt>Recommendation</dt><dd>{f.recommendation}</dd>
-                    {f.related_document && <><dt>Document</dt><dd>{f.related_document}</dd></>}
-                    {f.related_requirement && <><dt>Requirement</dt><dd>{f.related_requirement}</dd></>}
-                  </dl>
-                  {workspace.can_accept && (
-                    <div className="row-actions">
-                      <button className="btn primary small" onClick={() => void act(f.id, "accept")}>Accept</button>
-                      <button className="btn ghost small" onClick={() => { setEditing(f); setDraft(f.recommendation); }}>Modify &amp; Accept</button>
-                      <button className="btn ghost small" onClick={() => void act(f.id, "dismiss")}>Dismiss</button>
-                    </div>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-        </Modal>
       )}
 
       {editing && (
