@@ -68,6 +68,13 @@ export function analyse(kind: string, ctx: {
       description: "Field hardware installation and specialist analytics are not covered internally.",
       evidence: "DeepDive — Internal stakeholders and vendors", recommendation: "Confirm the partner and record the commercial terms before submission.",
       related_document: null, related_requirement: "Delivery model" }, 4);
+    if (ta) {
+      push({ type: "Tender Analyzer Finding", severity: "medium", title: "Mandatory technical clauses missing from the TP",
+        description: "The Tender Analyzer flags mandatory technical clauses that the Technical Proposal does not answer.",
+        evidence: `${ta.file_name} v${ta.doc_version} compared with ${tpRef}`,
+        recommendation: "Answer each flagged clause in the TP compliance matrix.",
+        related_document: ta.file_name, related_requirement: "Mandatory clauses" }, 5);
+    }
   }
 
   if (kind === "commercial") {
@@ -108,6 +115,13 @@ export function analyse(kind: string, ctx: {
       description: "All mandatory responses have an owner and evidence recorded.",
       evidence: "Consolidated analyses", recommendation: "Obtain the final sign-off before the submission date.",
       related_document: null, related_requirement: "Compliance" }, 3);
+    if (ta) {
+      push({ type: "Submission Readiness", severity: "medium", title: "Tender Analyzer checklist not fully closed",
+        description: "Items from the Tender Analyzer are still open across the TP and the CP.",
+        evidence: `${ta.file_name} v${ta.doc_version}${tp ? `, ${tp.file_name}` : ""}${cp ? `, ${cp.file_name}` : ""}`,
+        recommendation: "Close or justify every open Tender Analyzer item before submission.",
+        related_document: ta.file_name, related_requirement: "Tender compliance" }, 4);
+    }
   }
 
   ctx.comments.slice(0, 2).forEach((c, i) => push({

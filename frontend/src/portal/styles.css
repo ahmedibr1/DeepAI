@@ -618,6 +618,15 @@ html,body{max-width:100%;overflow-x:hidden}
 .analysis .outputs{list-style:none;margin:0;padding:0;font-size:12px;color:var(--muted);display:flex;
   flex-direction:column;gap:3px}
 .analysis .outputs li::before{content:"•";margin-right:6px;color:var(--purple)}
+.analysis .inputs{list-style:none;margin:0;padding:8px 10px;border-radius:10px;background:#FAF8FC;font-size:12px;
+  display:flex;flex-direction:column;gap:4px}
+.analysis .inputs li{display:flex;align-items:center;gap:6px;color:var(--ink)}
+.analysis .inputs li>span:first-child{width:14px;text-align:center;font-weight:700}
+.analysis .inputs li.ok>span:first-child{color:#0E7A4D}
+.analysis .inputs li.miss{color:#B0102F}
+.analysis .inputs li.opt{color:var(--muted)}
+.analysis .inputs em{font-style:normal;color:var(--muted)}
+.analysis .inputs .ver{margin-left:auto;color:var(--muted)}
 .analysis.tone-muted{opacity:.8;background:#FCFBFD}
 
 /* Findings */

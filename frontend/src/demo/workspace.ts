@@ -29,22 +29,22 @@ export const ANALYSES = [
     requires: ["deepdive", "customer"],
     outputs: ["Questions for Customer", "Initial Risk Findings", "Proposed Internal / Subsidiaries / Vendors", "Proposed Solutions"] },
   { kind: "technical", title: "Technical Analysis", blurb: "Technical coverage, gaps and submission readiness.",
-    requires: ["deepdive", "customer", "tp"],
+    requires: ["deepdive", "customer", "tp"], optional: ["ta"],
     outputs: ["Executive Summary", "Scope Coverage & Gaps", "Technical Risk Findings", "Recommended Mitigations",
               "Value Proposition & References", "Internal Capability Alignment", "Technical Submission Readiness"] },
-  { kind: "commercial", title: "Commercial Analysis", blurb: "Pricing consistency, commercial risks and benchmarking.",
-    requires: ["deepdive", "customer", "cp"],
+  { kind: "commercial", title: "Financial Analysis", blurb: "Pricing consistency, financial risks and benchmarking.",
+    requires: ["deepdive", "customer", "cp"], optional: ["ta"],
     outputs: ["Commercial Benchmarking", "Pricing consistency", "Commercial risks", "Commercial assumptions",
               "Quotation / CP consistency", "Tender Analyzer findings", "Recommended mitigations"] },
   { kind: "final", title: "Final Review", blurb: "Executive assessment and submission readiness.",
-    requires: ["deepdive", "customer", "analyses"],
+    requires: ["deepdive", "customer", "tp", "cp", "ta"],
     outputs: ["Consolidated open findings", "Final risks & mitigation", "Technical readiness", "Commercial readiness",
               "Outstanding customer questions", "Critical blockers"] },
 ];
 
 const REQUIREMENT_LABEL: Record<string, string> = {
   deepdive: "reviewed DeepDive", customer: "Customer Documents", tp: "Technical Proposal (TP)",
-  cp: "Commercial Proposal (CP)", analyses: "at least one completed analysis",
+  cp: "Commercial Proposal (CP)", ta: "Tender Analyzer (TA)",
 };
 
 export interface DocSnapshot { group: string; label: string; version: string | null; files: number }
@@ -60,7 +60,9 @@ export function snapshot(docs: { category: string; doc_version: number }[]): Doc
 
 export interface Analysis {
   kind: string; title: string; blurb: string; status: string; reason: string;
-  outputs: string[]; missing: string[]; ran_on?: { version: number; docs: string } | null;
+  outputs: string[]; missing: string[];
+  inputs: { label: string; optional: boolean; available: boolean; version: string | null }[];
+  ran_on?: { version: number; docs: string } | null;
 }
 
 /** Status of every analysis, read from the reviewed version. Technical and Commercial never block each other. */
@@ -71,50 +73,50 @@ export function eligibility(
     runs: Record<string, { version_number: number; inputs: string; status: string }>;
   },
 ): Analysis[] {
-  const has = (group: string) => snapshot(docs).some((s) => s.group === group && s.files > 0);
-  const inputsOf = (requires: string[]) =>
-    requires.filter((r) => r !== "deepdive" && r !== "analyses")
-      .map((r) => `${r}:${snapshot(docs).find((s) => s.group === r)?.version ?? "-"}`).join(" ");
+  const snap = snapshot(docs);
+  const has = (group: string) => snap.some((s) => s.group === group && s.files > 0);
 
-  const completed = new Set(Object.entries(runs).filter(([, r]) => r.status === "completed").map(([k]) => k));
-
-  return ANALYSES.map(({ kind, title, blurb, requires, outputs }) => {
-    const missing = requires.filter((r) => {
-      if (r === "deepdive") return !reviewed;
-      if (r === "analyses") return !["early", "technical", "commercial"].some((k) => completed.has(k));
-      return !has(r);
-    }).map((r) => REQUIREMENT_LABEL[r]);
+  return ANALYSES.map(({ kind, title, blurb, requires, optional = [], outputs: outs }) => {
+    const missing = requires.filter((r) => (r === "deepdive" ? !reviewed : !has(r))).map((r) => REQUIREMENT_LABEL[r]);
+    const inputs = [...requires.map((r) => ({ r, optional: false })), ...optional.map((r) => ({ r, optional: true }))]
+      .map(({ r, optional: opt }) => ({
+        label: r === "deepdive" ? "DeepDive" : REQUIREMENT_LABEL[r], optional: opt,
+        available: r === "deepdive" ? !!reviewed : has(r),
+        version: r === "deepdive" ? (reviewed ? `v${reviewed.version_number}` : null) : snap.find((x) => x.group === r)?.version ?? null,
+      }));
+    const outputs = outs;
 
     const run = runs[kind];
     if (run && run.status === "analyzing") {
-      return { kind, title, blurb, outputs, missing: [], status: "analyzing", reason: "Analysis in progress." };
+      return { kind, title, blurb, outputs, inputs, missing: [], status: "analyzing", reason: "Analysis in progress." };
     }
     if (missing.length) {
       return {
-        kind, title, blurb, outputs, missing,
+        kind, title, blurb, outputs, inputs, missing,
         status: "not_eligible",
-        reason: kind === "final" && reviewed ? "Waiting for required analysis" : `Waiting for ${missing.join(", ")}`,
+        reason: `Waiting for ${missing.join(", ")}`,
       };
     }
     if (run && run.status === "completed") {
       const sameVersion = run.version_number === (reviewed?.version_number ?? 0);
-      const sameInputs = run.inputs === inputsOf(requires);
+      const sameInputs = run.inputs === analysisInputs(kind, docs);
       if (sameVersion && sameInputs) {
-        return { kind, title, blurb, outputs, missing: [], status: "completed",
+        return { kind, title, blurb, outputs, inputs, missing: [], status: "completed",
                  reason: `Up to date with DeepDive v${run.version_number}`,
                  ran_on: { version: run.version_number, docs: run.inputs } };
       }
-      return { kind, title, blurb, outputs, missing: [], status: "reanalysis_required",
+      return { kind, title, blurb, outputs, inputs, missing: [], status: "reanalysis_required",
                reason: sameInputs ? `New reviewed version: DeepDive v${reviewed?.version_number}` : "New document version detected",
                ran_on: { version: run.version_number, docs: run.inputs } };
     }
-    return { kind, title, blurb, outputs, missing: [], status: "ready", reason: "All required inputs are available." };
+    return { kind, title, blurb, outputs, inputs, missing: [], status: "ready", reason: "All required inputs are available." };
   });
 }
 
 export const analysisInputs = (kind: string, docs: { category: string; doc_version: number }[]) => {
-  const requires = ANALYSES.find((a) => a.kind === kind)?.requires ?? [];
-  return requires.filter((r) => r !== "deepdive" && r !== "analyses")
+  const a = ANALYSES.find((x) => x.kind === kind);
+  // Optional documents count too: uploading a new TA version marks the analysis for re-analysis.
+  return [...(a?.requires ?? []), ...(a?.optional ?? [])].filter((r) => r !== "deepdive")
     .map((r) => `${r}:${snapshot(docs).find((s) => s.group === r)?.version ?? "-"}`).join(" ");
 };
 

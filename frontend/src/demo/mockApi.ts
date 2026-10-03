@@ -298,7 +298,7 @@ function readinessFor(o: DOpp) {
   add("Commercial", "Quotation aligned with the Commercial Proposal",
     done("commercial") ? (findings.some((f) => f.analysis === "commercial" && f.severity === "high" && f.status === "open") ? "attention" : "ready") : "waiting",
     snapshot(activeDocs(o.id, reviewed?.id ?? "")).find((x) => x.group === "cp")?.version ?? "CP not available",
-    "Commercial Team", "Commercial Analysis");
+    "Commercial Team", "Financial Analysis");
   tracker.filter((t) => t.status === "waiting_customer").forEach((t) =>
     add("Customer", t.title, "waiting", "AI Accepted Tracker", t.owner || "Presales Lead", "Early Analysis"));
   findings.filter((f) => f.status === "open" && f.severity === "high" && f.type.toLowerCase().includes("risk")).forEach((f) =>

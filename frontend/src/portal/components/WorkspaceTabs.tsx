@@ -13,7 +13,8 @@ export interface Workspace {
                       snapshot: { group: string; label: string; version: string | null; files: number }[] } | null;
   snapshot: { group: string; label: string; version: string | null; files: number }[];
   analyses: { kind: string; title: string; blurb: string; status: string; reason: string; outputs: string[];
-              missing: string[]; ran_on?: { version: number; docs: string } | null }[];
+              missing: string[]; inputs?: { label: string; optional: boolean; available: boolean; version: string | null }[];
+              ran_on?: { version: number; docs: string } | null }[];
   findings: { id: string; analysis: string; type: string; severity: string; title: string; description: string;
               evidence: string; recommendation: string; related_document: string | null;
               related_requirement: string | null; status: string }[];
@@ -170,6 +171,17 @@ export function AiAnalysisTab({ opp, workspace, onChanged }:
               </span>
             </header>
             <p className="muted small">{a.blurb}</p>
+            {a.inputs && (
+              <ul className="inputs" aria-label="Required documents">
+                {a.inputs.map((i) => (
+                  <li key={i.label} className={i.available ? "ok" : i.optional ? "opt" : "miss"}>
+                    <span aria-hidden="true">{i.available ? "✓" : i.optional ? "○" : "✕"}</span>
+                    {i.label}{i.optional && <em> (optional)</em>}
+                    {i.version && <span className="ver">{i.version}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
             <p className="reason">{a.reason}</p>
             <ul className="outputs">{a.outputs.slice(0, 4).map((o) => <li key={o}>{o}</li>)}</ul>
             {workspace.can_run_ai && (a.status === "ready" || a.status === "reanalysis_required") && (
