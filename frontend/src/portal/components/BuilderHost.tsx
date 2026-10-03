@@ -130,8 +130,11 @@ export const BuilderHost = forwardRef<BuilderHandle, Props>(function BuilderHost
 
   // file:// and blob: pages have an opaque origin; the iframe identity check below is the real guard.
   const sameOrigin = window.location.origin && window.location.origin !== "null";
-  const post = (msg: Record<string, unknown>) =>
-    frame.current?.contentWindow?.postMessage(msg, sameOrigin ? window.location.origin : "*");
+  // The demo's inlined builder runs from a blob: URL. Opened from disk, that frame's origin is "null" while
+  // this page reports "file://", so a message addressed to our own origin is silently dropped and the
+  // builder never receives the version. We only ever post to the frame we created, so "*" is safe there.
+  const targetOrigin = sameOrigin && !inlinedBuilder() ? window.location.origin : "*";
+  const post = (msg: Record<string, unknown>) => frame.current?.contentWindow?.postMessage(msg, targetOrigin);
 
   const pushToBuilder = useCallback((v: VersionDetail) => {
     if (!ready.current) return;
