@@ -17,7 +17,8 @@ a{color:var(--purple)}
 /* ---- Shell */
 .shell{display:grid;grid-template-columns:var(--nav-w) 1fr;min-height:100%}
 .sidenav{background:var(--purple);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-.sidenav .brand{padding:18px 22px 20px;border-bottom:1px solid rgba(255,255,255,.12)}
+.sidenav .brand{padding:18px 22px 20px;border-bottom:1px solid rgba(255,255,255,.12);display:flex;align-items:center;gap:12px}
+.brand-mark{flex:none;display:block}
 .sidenav .brand b{display:block;font-size:17px;letter-spacing:-.2px}
 .sidenav .brand span{color:var(--lav);font-size:12px}
 .sidenav nav{padding:12px 10px;overflow-y:auto;flex:1}
@@ -183,6 +184,7 @@ table.data tbody tr.clickable:hover{background:#FBF8FD}
 .login .hero > *{position:relative;z-index:1}
 .login .hero .kick{color:var(--coral);letter-spacing:.2em;font-weight:700;font-size:13px;margin-top:auto}
 .login .hero h1{font-size:54px;margin:8px 0 12px;line-height:1.05;letter-spacing:-1px}
+.login .hero h1.login-brand{display:flex;align-items:center;gap:16px}
 .login .hero p{color:var(--lav);max-width:44ch;margin:0 0 auto}
 .login .panel{display:flex;align-items:center;justify-content:center;padding:40px}
 .login form{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}

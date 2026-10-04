@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { BrandMark } from "../components/BrandMark";
 import { ErrorAlert } from "../components/ui";
 
 export function LoginPage() {
@@ -35,7 +36,7 @@ export function LoginPage() {
       <section className="hero" aria-hidden="true">
         <b>solutions by stc</b>
         <div className="kick">PRESALES PORTAL</div>
-        <h1>DeepAI</h1>
+        <h1 className="login-brand"><BrandMark size={64} onDark />DeepAI</h1>
         <p>Build the DeepDive, get your Director’s review, and prepare every strategic opportunity for AI-assisted readiness analysis.</p>
       </section>
       <section className="panel">
