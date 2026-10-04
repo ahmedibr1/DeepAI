@@ -123,7 +123,7 @@ export function AppShell() {
           )}
         </nav>
         <div className="me"><b>{me?.full_name}</b><span>{me?.role_label}{me?.team ? ` · ${me.team.name}` : ""}</span></div>
-        <div className="footer-logo"><b>stc</b>together for a brighter tomorrow</div>
+        <div className="footer-logo">together for a brighter tomorrow</div>
       </aside>
       <div className="main">
         <header className="topbar">
