@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import type { NotificationItem } from "../api/types";
 import { opportunitiesLabel, PERM, useAuth } from "../auth/AuthContext";
 import { timeAgo } from "../lib/format";
+import { readAppearance } from "../pages/admin/AppearancePage";
 import { Icon } from "./Icon";
 
 function NavItem({ to, icon, label, soon, end, match }: {
@@ -93,7 +94,7 @@ export function AppShell() {
     <div className={`shell${navOpen ? " nav-open" : ""}`}>
       {navOpen && <button type="button" className="nav-scrim" aria-label="Close menu" onClick={() => setNavOpen(false)} />}
       <aside className="sidenav" onClick={() => setNavOpen(false)}>
-        <div className="brand"><b>Presales DeepDive</b><span>solutions by stc</span></div>
+        <div className="brand"><b>{readAppearance().product}</b><span>solutions by stc</span></div>
         <nav aria-label="Main">
           <NavItem to="/dashboard" icon="dashboard" label="Dashboard" />
           <div className="nav-group">Opportunities</div>
@@ -123,7 +124,6 @@ export function AppShell() {
           )}
         </nav>
         <div className="me"><b>{me?.full_name}</b><span>{me?.role_label}{me?.team ? ` · ${me.team.name}` : ""}</span></div>
-        <div className="footer-logo">together for a brighter tomorrow</div>
       </aside>
       <div className="main">
         <header className="topbar">

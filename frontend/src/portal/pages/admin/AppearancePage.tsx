@@ -12,17 +12,21 @@ const ACCENTS = [
 ];
 
 export interface Appearance { accent: string; density: "comfortable" | "compact"; product: string }
-const DEFAULTS: Appearance = { accent: "#4F008C", density: "comfortable", product: "Presales DeepDive" };
+const DEFAULTS: Appearance = { accent: "#4F008C", density: "comfortable", product: "DeepAI" };
 
 export function readAppearance(): Appearance {
-  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; } catch { return DEFAULTS; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) ?? "{}");
+    if (saved.product === "Presales DeepDive") delete saved.product;   // the old default name, now DeepAI
+    return { ...DEFAULTS, ...saved };
+  } catch { return DEFAULTS; }
 }
 
 export function applyAppearance(a: Appearance = readAppearance()) {
   const root = document.documentElement;
   root.style.setProperty("--purple", a.accent);
   root.dataset.density = a.density;
-  document.title = `${a.product} · solutions by stc`;
+  document.title = a.product;
 }
 
 export function AppearancePage() {

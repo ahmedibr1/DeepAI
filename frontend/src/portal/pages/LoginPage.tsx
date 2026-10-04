@@ -35,7 +35,7 @@ export function LoginPage() {
       <section className="hero" aria-hidden="true">
         <b>solutions by stc</b>
         <div className="kick">PRESALES PORTAL</div>
-        <h1>DeepDive</h1>
+        <h1>DeepAI</h1>
         <p>Build the DeepDive, get your Director’s review, and prepare every strategic opportunity for AI-assisted readiness analysis.</p>
       </section>
       <section className="panel">
