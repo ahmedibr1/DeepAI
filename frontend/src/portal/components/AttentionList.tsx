@@ -13,7 +13,8 @@ import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 import { Icon } from "./Icon";
 
 const nf = new Intl.NumberFormat("en-US");
-const PAGE_SIZE = 5;
+// Every qualifying opportunity on one page: the entry criteria already keep the list short.
+const PAGE_SIZE = Number.MAX_SAFE_INTEGER;
 const FAR_FUTURE = 8640000000000;
 
 const SORTS = [
