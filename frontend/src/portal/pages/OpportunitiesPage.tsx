@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import type { OpportunityListItem, Page, Reference } from "../api/types";
 import { opportunitiesLabel, PERM, useAuth } from "../auth/AuthContext";
 import { OpportunityCards } from "../components/OpportunityTable";
+import { Icon } from "../components/Icon";
 import { ErrorAlert, PageHeader } from "../components/ui";
 import { useAsync } from "../lib/useAsync";
 import { SheetImport } from "../components/SheetImport";
@@ -62,10 +63,13 @@ export function OpportunitiesPage() {
         Showing opportunities with high-priority support needs or high-impact risks.{" "}
         <Link to="/dashboard">See the details on the dashboard</Link>.
       </div>}
+      <label className="opp-search">
+        <Icon name="search" />
+        <input type="search" defaultValue={params.get("q") ?? ""} id="f-q" aria-label="Search by OPP number"
+          placeholder="Search by OPP number (e.g. 165128), opportunity name or account…" onChange={(e) => update("q", e.target.value)} />
+      </label>
       <section className="card">
         <div className="filters" role="search">
-          <div className="field"><label htmlFor="f-q">Search</label>
-            <input id="f-q" defaultValue={params.get("q") ?? ""} placeholder="Title, account or number" onChange={(e) => update("q", e.target.value)} /></div>
           <div className="field"><label htmlFor="f-account">Account</label>
             <input id="f-account" defaultValue={params.get("account") ?? ""} onChange={(e) => update("account", e.target.value)} /></div>
           <div className="field"><label htmlFor="f-number">Opportunity number</label>
@@ -105,7 +109,7 @@ export function OpportunitiesPage() {
             <input id="f-to" type="date" value={params.get("updated_to") ?? ""} onChange={(e) => update("updated_to", e.target.value)} /></div>
         </div>
         {list.loading && !list.data ? <p className="muted card-pad">Loading…</p> : (
-          <OpportunityCards rows={list.data?.items ?? []}
+          <OpportunityCards onChanged={() => void list.reload()} rows={list.data?.items ?? []}
             empty={params.toString() ? "No opportunities match these filters." : "No opportunities yet."} />
         )}
         {pages > 1 && (

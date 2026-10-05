@@ -865,3 +865,13 @@ table.checklist td.small{white-space:normal;min-width:160px}
 .entry-card li b{display:block}
 .entry-card .tick{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:800}
 .entry-card li.on .tick{background:#FF375E;border-color:#FF375E;color:#fff}
+.opp-search{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;
+  padding:0 16px;margin:0 0 14px;height:52px;box-shadow:0 1px 2px rgba(42,0,73,.04)}
+.opp-search:focus-within{border-color:var(--purple);box-shadow:0 0 0 3px rgba(79,0,140,.12)}
+.opp-search svg{width:20px;height:20px;color:var(--muted)}
+.opp-search input{flex:1;border:0;outline:0;font:inherit;font-size:15px;background:transparent}
+.flag-btn{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 12px;font:inherit;
+  font-size:12px;font-weight:700;color:var(--muted);cursor:pointer}
+.flag-btn:hover:not(:disabled){border-color:#FF375E;color:#FF375E}
+.flag-btn.on{background:#FFE7EC;border-color:#FF375E;color:#B0102F}
+.dash-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:#DDF3E4;color:#0E7A4D;font-size:11.5px;font-weight:700}

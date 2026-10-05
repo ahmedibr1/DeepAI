@@ -380,7 +380,7 @@ function oppOut(o: DOpp) {
     current_version: v?.version_number ?? null, ai_readiness: o.ai_readiness,
     has_critical_findings: o.has_critical_findings, created_at: o.created_at, updated_at: o.updated_at,
     // Added by hand (flagged) or managed by the opportunities sheet. The sheet never touches manual ones.
-    source: o.source ?? "manual", strategic: !!o.strategic, previous_projects: !!o.previous_projects,
+    source: o.source ?? "sheet", strategic: !!o.strategic, previous_projects: !!o.previous_projects,
     entry_criteria: entryCriteria(o) };
 }
 function detailOut(u: DUser, o: DOpp) {
@@ -474,8 +474,8 @@ function entryCriteria(o: DOpp) {
   const criteria = {
     value: value >= ENTRY_MIN_VALUE,
     previous_projects: !!o.previous_projects,
-    // Opportunities added by hand are the ones flagged as strategic; any other can be flagged on its Overview.
-    strategic: !!o.strategic || (o.source ?? "manual") === "manual",
+    // Opportunities added by hand count as flagged; any other is flagged with the ⚑ Flag button or on its Overview.
+    strategic: !!o.strategic || (o.source ?? "sheet") === "manual",
   };
   return { ...criteria, qualifies: criteria.value || criteria.previous_projects || criteria.strategic };
 }
@@ -711,9 +711,10 @@ interface SheetRow { number: string; title: string; account: string; type?: stri
   strategic?: string; previous_projects?: string }
 const yes = (v?: string) => ["yes", "y", "true", "1", "نعم", "x", "✓"].includes(String(v ?? "").trim().toLowerCase());
 
-/** Compares the opportunities sheet with the portal. Rows not yet in the portal become active opportunities;
-    sheet-managed opportunities missing from the sheet are archived (and restored if they come back).
-    Opportunities added by hand are flagged "manual" and never changed by the sheet. */
+/** Compares the opportunities sheet (the CRM "Opportunity Advanced Find View") with the portal. Rows not yet in
+    the portal become active opportunities; every other opportunity missing from the sheet is archived (and
+    restored if it comes back). Only opportunities created by hand with "Create opportunity" are never touched.
+    Opportunities that predate the source flag (e.g. demo data) are treated as sheet-managed. */
 function sheetPlan(rows: SheetRow[]) {
   const seen = new Map<string, SheetRow>();
   const invalid: { row: number; reason: string }[] = [];
@@ -730,11 +731,11 @@ function sheetPlan(rows: SheetRow[]) {
     ? { number: o.opportunity_number, title: o.title, account: o.account_name }
     : { number: o.number, title: o.title, account: o.account });
   const add = [...seen.values()].filter((r) => !byNumber.has(r.number));
-  const restore = db.opportunities.filter((o) => (o.source ?? "manual") === "sheet" && o.is_archived && seen.has(o.opportunity_number));
-  const archive = db.opportunities.filter((o) => (o.source ?? "manual") === "sheet" && !o.is_archived
+  const restore = db.opportunities.filter((o) => (o.source ?? "sheet") === "sheet" && o.is_archived && seen.has(o.opportunity_number));
+  const archive = db.opportunities.filter((o) => (o.source ?? "sheet") === "sheet" && !o.is_archived
     && o.status !== "completed" && !seen.has(o.opportunity_number));
-  const manual = db.opportunities.filter((o) => (o.source ?? "manual") === "manual" && seen.has(o.opportunity_number));
-  const unchanged = db.opportunities.filter((o) => (o.source ?? "manual") === "sheet" && !o.is_archived && seen.has(o.opportunity_number));
+  const manual = db.opportunities.filter((o) => (o.source ?? "sheet") === "manual" && seen.has(o.opportunity_number));
+  const unchanged = db.opportunities.filter((o) => (o.source ?? "sheet") === "sheet" && !o.is_archived && seen.has(o.opportunity_number));
   return { seen, add, restore, archive, manual, unchanged, invalid,
     summary: { rows: rows.length, add: add.map(brief), restore: restore.map(brief), archive: archive.map(brief),
                manual: manual.map(brief), unchanged: unchanged.length, invalid } };
