@@ -232,7 +232,7 @@ export function OpportunityPage() {
       </nav>
 
       <Routes>
-        <Route index element={<Overview opp={opp} versions={versions} history={history} workspace={workspace} />} />
+        <Route index element={<Overview opp={opp} versions={versions} history={history} workspace={workspace} onChanged={() => void load()} />} />
         <Route path="tracker" element={workspace
           ? <TrackerTab opp={opp} workspace={workspace} onChanged={() => { void load(); void loadWorkspace(); }} />
           : <p className="muted">Loading…</p>} />
@@ -334,8 +334,8 @@ export function OpportunityPage() {
 }
 
 /** Overview is the master record: it always shows the latest opportunity information, whatever version is selected. */
-function Overview({ opp, versions, history, workspace }:
-  { opp: OpportunityDetail; versions: VersionSummary[]; history: HistoryItem[]; workspace: Workspace | null }) {
+function Overview({ opp, versions, history, workspace, onChanged }:
+  { opp: OpportunityDetail; versions: VersionSummary[]; history: HistoryItem[]; workspace: Workspace | null; onChanged: () => void }) {
   const navigate = useNavigate();
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   useEffect(() => {
@@ -369,6 +369,7 @@ function Overview({ opp, versions, history, workspace }:
         </dl>
       </section>
       <aside style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <EntryCriteriaCard opp={opp} onChanged={onChanged} />
         {workspace && (
           <section className="card card-pad">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -485,6 +486,47 @@ function HistoryTimeline({ history }: { history: HistoryItem[] }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+/** The DeepDive entry criteria for this opportunity. Value comes from the DeepDive; the other two are set here. */
+function EntryCriteriaCard({ opp, onChanged }: { opp: OpportunityDetail; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const c = opp.entry_criteria;
+  if (!c) return null;
+  const manual = opp.source === "manual";
+  const set = async (field: "strategic" | "previous_projects", value: boolean) => {
+    setBusy(true);
+    try { await api.patch(`/opportunities/${opp.id}/flags`, { [field]: value }); onChanged(); } finally { setBusy(false); }
+  };
+  return (
+    <section className="card card-pad entry-card">
+      <h2 className="section" style={{ marginBottom: 4 }}>Entry criteria</h2>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        {c.qualifies ? "Meets the entry criteria — shown on the dashboard." : "Meets none of the entry criteria — not shown on the dashboard."}
+      </p>
+      <ul>
+        <li className={c.value ? "on" : ""}>
+          <span className="tick" aria-hidden="true">{c.value ? "✓" : ""}</span>
+          <div><b>≥ SAR 20M</b><span className="muted small">opportunity value, from the DeepDive</span></div>
+        </li>
+        <li className={c.previous_projects ? "on" : ""}>
+          <label>
+            <input type="checkbox" checked={!!opp.previous_projects} disabled={busy}
+              onChange={(e) => void set("previous_projects", e.target.checked)} />
+            <div><b>Previous</b><span className="muted small">delivered projects with this customer</span></div>
+          </label>
+        </li>
+        <li className={c.strategic ? "on" : ""}>
+          <label>
+            <input type="checkbox" checked={manual || !!opp.strategic} disabled={busy || manual}
+              onChange={(e) => void set("strategic", e.target.checked)} />
+            <div><b>Flagged</b><span className="muted small">
+              strategic opportunity{manual ? " (added by hand, so always flagged)" : ""}</span></div>
+          </label>
+        </li>
+      </ul>
     </section>
   );
 }

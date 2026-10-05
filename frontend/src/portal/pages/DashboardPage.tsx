@@ -124,13 +124,15 @@ export function DashboardPage() {
             ))}
           </div>
 
+          {management && data.entry && <EntryCriteriaBanner entry={data.entry} />}
+
           {management ? (
             <section className="card" style={{ background: "transparent", border: 0, boxShadow: "none" }}>
               <div className="monitor-head">
                 <div>
                   <h2 className="section">Opportunity Attention Monitor ({data.monitor?.length ?? 0})</h2>
                   <span className="muted small">
-                    Monitor all active opportunities, with risks and support needs highlighted for attention.
+                    Active opportunities that meet the entry criteria, with risks and support needs highlighted for attention.
                   </span>
                 </div>
                 <Legends />
@@ -152,5 +154,33 @@ export function DashboardPage() {
         </>
       )}
     </main>
+  );
+}
+
+/** The DeepDive entry criteria: the dashboard lists opportunities that meet at least one of them. */
+function EntryCriteriaBanner({ entry }: { entry: NonNullable<DashboardSummary["entry"]> }) {
+  const million = Math.round(entry.min_value / 1_000_000);
+  const items: [string, string, number][] = [
+    [`≥ SAR ${million}M`, "opportunity value", entry.value],
+    ["Previous", "delivered projects", entry.previous_projects],
+    ["Flagged", "strategic opportunity", entry.strategic],
+  ];
+  return (
+    <section className="entry-banner" aria-label="Entry criteria">
+      <div className="entry-kicker">Entry criteria</div>
+      <div className="entry-items">
+        {items.map(([big, small, n]) => (
+          <div key={big} className="entry-item">
+            <span className="entry-check" aria-hidden="true"><Icon name="check" /></span>
+            <div><b>{big}</b><span>{small}</span></div>
+            <span className="entry-count" title="Active opportunities meeting this">{n}</span>
+          </div>
+        ))}
+      </div>
+      <p className="entry-note">
+        Showing {entry.qualifying} of {entry.active} active opportunities — those that meet at least one criterion.{" "}
+        <Link to="/opportunities?active=1">See all active opportunities</Link>
+      </p>
+    </section>
   );
 }

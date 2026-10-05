@@ -24,6 +24,7 @@ export interface OpportunityListItem {
   created_at: string; updated_at: string;
   /** "manual": added by hand and flagged, never changed by the opportunities sheet. "sheet": kept in step with it. */
   source?: "manual" | "sheet";
+  strategic?: boolean; previous_projects?: boolean; entry_criteria?: EntryCriteria;
 }
 
 export interface WorkflowAction { action: string; label: string; requires_comment: boolean; enabled: boolean }
@@ -58,6 +59,7 @@ export interface DashboardCard {
 }
 
 export interface MonitorRow {
+  criteria?: EntryCriteria;
   id: string; opportunity_number: string; title: string; account_name: string; status: Status; status_label: string;
   opportunity_type: string | null; vertical: string | null; portfolio: string | null;
   owner: string | null; manager: string | null; director: string | null;
@@ -80,7 +82,10 @@ export interface AttentionItem {
   risks: { risk: string; category: string; impact: string; mitigation: string; owner: string; due_date: string | null; status: string }[];
 }
 
+/** DeepDive entry criteria: the dashboard shows opportunities that meet at least one. */
+export interface EntryCriteria { value: boolean; previous_projects: boolean; strategic: boolean; qualifies: boolean }
 export interface DashboardSummary {
+  entry?: { min_value: number; active: number; qualifying: number; value: number; previous_projects: number; strategic: number };
   role: RoleKey;
   kind: "management" | "account";
   cards: DashboardCard[];

@@ -243,6 +243,14 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                         </div></td>
                         <td className="num">
                           <Link className="op-link" to={`/opportunities/${row.id}`}>{row.opportunity_number}</Link>
+                          {row.criteria && (
+                            <span className="crit-chips">
+                              {row.criteria.value && <span title="Opportunity value of SAR 20M or more">20M+</span>}
+                              {row.criteria.previous_projects && <span title="Previous delivered projects">Prev. projects</span>}
+                              {row.criteria.strategic && <span title="Flagged strategic opportunity">⚑ Strategic</span>}
+                            </span>
+                          )}
+
                         </td>
                         <td className="truncate" title={row.account_name}>{row.account_name}</td>
                         <td className="truncate wide" title={row.title}>

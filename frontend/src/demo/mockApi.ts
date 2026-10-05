@@ -38,7 +38,7 @@ export const DEMO_PASSWORD = "Demo2026pass";
 interface DUser { id: string; username: string; full_name: string; vertical_id?: string | null; email: string | null; role: RoleKey; team_id: string | null; is_active: boolean; must_change_password: boolean; locked: boolean; last_login_at: string | null; created_at: string; password: string }
 interface DTeam { id: string; name: string; director_id: string | null; manager_id: string | null; sales_gm_id?: string | null; is_active: boolean }
 interface DVersion { id: string; opportunity_id: string; version_number: number; change_notes: string | null; is_locked: boolean; locked_at: string | null; submitted_at: string | null; revision: number; created_at: string; updated_at: string; created_by: string; updated_by: string; data: Record<string, any> }
-interface DOpp { session_confirmed_by?: string | null; session_confirmed_at?: string | null; session_confirmed_version_id?: string | null; id: string; opportunity_number: string; title: string; account_name: string; opportunity_type?: string | null; vertical?: string | null; status: string; owner_id: string; team_id: string | null; manager_id: string | null; director_id: string | null; is_archived?: boolean; source?: "manual" | "sheet"; folder_name?: string | null; folder_signature?: string | null; current_version_id: string; ai_readiness: string | null; has_critical_findings: boolean; created_at: string; updated_at: string }
+interface DOpp { session_confirmed_by?: string | null; session_confirmed_at?: string | null; session_confirmed_version_id?: string | null; id: string; opportunity_number: string; title: string; account_name: string; opportunity_type?: string | null; vertical?: string | null; status: string; owner_id: string; team_id: string | null; manager_id: string | null; director_id: string | null; is_archived?: boolean; source?: "manual" | "sheet"; strategic?: boolean; previous_projects?: boolean; folder_name?: string | null; folder_signature?: string | null; current_version_id: string; ai_readiness: string | null; has_critical_findings: boolean; created_at: string; updated_at: string }
 interface DHistory { id: number; opportunity_id: string; version_id: string; action: string; from_status: string | null; to_status: string; actor_id: string | null; comment: string | null; created_at: string }
 interface DNotification { id: string; user_id: string; type: string; title: string; body: string | null; opportunity_id: string | null; read_at: string | null; created_at: string }
 interface DAudit { id: number; occurred_at: string; actor_username: string | null; action: string; outcome: string; entity_type: string | null; entity_id: string | null; opportunity_id: string | null; ip_address: string | null; details: Record<string, unknown> | null }
@@ -380,7 +380,8 @@ function oppOut(o: DOpp) {
     current_version: v?.version_number ?? null, ai_readiness: o.ai_readiness,
     has_critical_findings: o.has_critical_findings, created_at: o.created_at, updated_at: o.updated_at,
     // Added by hand (flagged) or managed by the opportunities sheet. The sheet never touches manual ones.
-    source: o.source ?? "manual" };
+    source: o.source ?? "manual", strategic: !!o.strategic, previous_projects: !!o.previous_projects,
+    entry_criteria: entryCriteria(o) };
 }
 function detailOut(u: DUser, o: DOpp) {
   const v = db.versions.find((x) => x.id === o.current_version_id)!;
@@ -465,11 +466,25 @@ const preview = (text: string, max = 600) => {
 const names = (items: any[], ...fields: string[]) => (items ?? [])
   .map((i) => fields.map((f) => String(i?.[f] ?? "").trim()).find(Boolean)).filter(Boolean) as string[];
 
-/** Every active opportunity, ordered by customer submission date: the management monitor. */
+/** DeepDive entry criteria. An opportunity is on the dashboard when it meets at least one of them. */
+const ENTRY_MIN_VALUE = 20_000_000;
+function entryCriteria(o: DOpp) {
+  const data: Record<string, any> = db.versions.find((v) => v.id === o.current_version_id)?.data ?? {};
+  const value = Number(String(data.value ?? "").replace(/[^0-9.]/g, "")) || 0;
+  const criteria = {
+    value: value >= ENTRY_MIN_VALUE,
+    previous_projects: !!o.previous_projects,
+    // Opportunities added by hand are the ones flagged as strategic; any other can be flagged on its Overview.
+    strategic: !!o.strategic || (o.source ?? "manual") === "manual",
+  };
+  return { ...criteria, qualifies: criteria.value || criteria.previous_projects || criteria.strategic };
+}
+
+/** Every active opportunity that meets the entry criteria, ordered by customer submission date. */
 function monitorRows(u: DUser) {
   const today = new Date().toISOString().slice(0, 10);
   return visible(u)
-    .filter((o) => !o.is_archived && o.status !== "completed")
+    .filter((o) => !o.is_archived && o.status !== "completed" && entryCriteria(o).qualifies)
     .map((o) => {
       const version = db.versions.find((v) => v.id === o.current_version_id);
       const data: Record<string, any> = version?.data ?? {};
@@ -494,6 +509,7 @@ function monitorRows(u: DUser) {
         nearest_due_date: nearest, is_overdue: !!nearest && nearest < today,
         days_since_update: Math.max(dayDiff(o.updated_at.slice(0, 10), today), 0),
         scope: preview(data.sow ?? ""), internal: names(data.internal, "unit"), vendors: names(data.vendors, "name"),
+        criteria: entryCriteria(o),
         support: [...support].sort((a, b) => (a.due_date ?? FAR_FUTURE).localeCompare(b.due_date ?? FAR_FUTURE)),
         risks: [...risks].sort((a, b) => (a.due_date ?? FAR_FUTURE).localeCompare(b.due_date ?? FAR_FUTURE)),
       };
@@ -691,7 +707,9 @@ function newOpportunity(u: DUser, f: { number: string; title: string; account: s
 }
 
 interface SheetRow { number: string; title: string; account: string; type?: string; vertical?: string; value?: string;
-  submission_date?: string; presales_received?: string; presales_lead?: string; account_manager?: string; sow?: string }
+  submission_date?: string; presales_received?: string; presales_lead?: string; account_manager?: string; sow?: string;
+  strategic?: string; previous_projects?: string }
+const yes = (v?: string) => ["yes", "y", "true", "1", "نعم", "x", "✓"].includes(String(v ?? "").trim().toLowerCase());
 
 /** Compares the opportunities sheet with the portal. Rows not yet in the portal become active opportunities;
     sheet-managed opportunities missing from the sheet are archived (and restored if they come back).
@@ -834,9 +852,16 @@ const routes: [string, RegExp, Handler][] = [
     const plan = sheetPlan(rows);
     if (!body.apply) return plan.summary;
     const t = now();
-    plan.add.forEach((r) => newOpportunity(u, { number: r.number, title: r.title, account: r.account, type: r.type || null,
+    plan.add.map((r) => newOpportunity(u, { number: r.number, title: r.title, account: r.account, type: r.type || null,
       vertical: r.vertical || null, value: r.value, submissionDate: r.submission_date, presalesReceived: r.presales_received,
-      presalesLead: r.presales_lead, accountManager: r.account_manager, sow: r.sow }, "sheet"));
+      presalesLead: r.presales_lead, accountManager: r.account_manager, sow: r.sow }, "sheet"))
+      .forEach((o, i) => { const r = plan.add[i]; o.strategic = yes(r.strategic); o.previous_projects = yes(r.previous_projects); });
+    // Sheet columns, when present, keep the two flags of sheet-managed opportunities up to date.
+    plan.unchanged.concat(plan.restore).forEach((o) => {
+      const r = plan.seen.get(o.opportunity_number);
+      if (r?.strategic !== undefined && r.strategic !== "") o.strategic = yes(r.strategic);
+      if (r?.previous_projects !== undefined && r.previous_projects !== "") o.previous_projects = yes(r.previous_projects);
+    });
     plan.archive.forEach((o) => {
       o.is_archived = true; o.updated_at = t;
       db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: o.current_version_id, action: "archived", from_status: o.status,
@@ -853,6 +878,16 @@ const routes: [string, RegExp, Handler][] = [
     return { ...plan.summary, applied: true };
   }],
   ["GET", /^\/opportunities\/([^/]+)$/, (m) => { const u = requireUser(); return detailOut(u, getOpp(u, m[1])); }],
+  ["PATCH", /^\/opportunities\/([^/]+)\/flags$/, (m, body) => {
+    const u = requireUser(); const o = getOpp(u, m[1]);
+    if (typeof body?.strategic === "boolean") o.strategic = body.strategic;
+    if (typeof body?.previous_projects === "boolean") o.previous_projects = body.previous_projects;
+    o.updated_at = now();
+    audit("opportunity.flags_updated", { entity_type: "opportunity", entity_id: o.id, opportunity_id: o.id,
+      details: { strategic: o.strategic, previous_projects: o.previous_projects } });
+    persist();
+    return detailOut(u, o);
+  }],
   // ---------------------------------------------------------------- shared folder
   ["POST", /^\/opportunities\/([^/]+)\/folder$/, (m, body) => {
     const u = requireUser(); const o = getOpp(u, m[1]);
@@ -1467,9 +1502,11 @@ const routes: [string, RegExp, Handler][] = [
 
     if (u.role === "admin" || MANAGEMENT_ROLES.includes(u.role)) {
       const monitor = monitorRows(u);
+      const activeAll = rows.filter((o) => !o.is_archived && o.status !== "completed");
+      const qualifying = new Set(monitor.map((r) => r.id));
       const attention = monitor.filter((r) => r.attention_count > 0);
       const personal = ["portfolio_director", "portfolio_manager"].includes(u.role);
-      const inReview = rows.filter((o) => ["submitted", "in_review"].includes(o.status));
+      const inReview = rows.filter((o) => qualifying.has(o.id) && ["submitted", "in_review"].includes(o.status));
       const mineInReview = personal ? inReview.filter((o) => o.manager_id === u.id || o.director_id === u.id) : inReview;
 
       const types = { RFP: 0, RFI: 0, "Non-RFP": 0 } as Record<string, number>;
@@ -1488,7 +1525,7 @@ const routes: [string, RegExp, Handler][] = [
           { key: "awaiting", label: "Awaiting My Review", value: mineInReview.length, tone: "coral",
             note: personal && inReview.length !== mineInReview.length ? `${inReview.length} in review overall` : null,
             filter: { status: ["submitted", "in_review"], ...(personal ? { assigned_to_me: "1" } : {}) } },
-          { key: "ready_for_ai", label: "Ready for AI", value: rows.filter((o) => o.status === "ready_for_ai").length,
+          { key: "ready_for_ai", label: "Ready for AI", value: rows.filter((o) => qualifying.has(o.id) && o.status === "ready_for_ai").length,
             filter: { status: ["ready_for_ai"] } },
         );
       }
@@ -1500,7 +1537,11 @@ const routes: [string, RegExp, Handler][] = [
       cards.push({ key: "attention", label: "Opportunities Needing Attention", value: attention.length,
         filter: { attention: "1" }, tone: "red" });
 
-      return { role: u.role, kind: "management", unread_notifications: unread, attention, monitor, cards,
+      const crit = activeAll.map(entryCriteria);
+      const entry = { min_value: ENTRY_MIN_VALUE, active: activeAll.length, qualifying: monitor.length,
+        value: crit.filter((c) => c.value).length, previous_projects: crit.filter((c) => c.previous_projects).length,
+        strategic: crit.filter((c) => c.strategic).length };
+      return { role: u.role, kind: "management", unread_notifications: unread, attention, monitor, cards, entry,
         portfolios: db.teams.map((t) => ({ id: t.id, name: t.name })) };
     }
 

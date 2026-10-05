@@ -6,6 +6,7 @@ export interface OpportunityRow {
   number: string; title: string; account: string; type?: string; vertical?: string; value?: string;
   submission_date?: string; presales_received?: string;
   presales_lead?: string; account_manager?: string; sow?: string;
+  strategic?: string; previous_projects?: string;      // DeepDive entry criteria, when the sheet carries them
 }
 
 const COLUMNS: [keyof OpportunityRow, string[]][] = [
@@ -22,6 +23,9 @@ const COLUMNS: [keyof OpportunityRow, string[]][] = [
   ["presales_lead", ["presales lead", "presales owner", "presales engineer"]],
   ["account_manager", ["opportunity owner am", "account manager", "am", "opportunity owner"]],
   ["sow", ["presales sow", "scope of work", "sow"]],
+  ["strategic", ["strategic", "strategic opportunity", "flagged strategic", "flagged", "is strategic"]],
+  ["previous_projects", ["previous delivered projects", "previous projects", "delivered projects", "existing customer",
+                         "previous projects delivered"]],
 ];
 export const REQUIRED_HEADERS = ["Opportunity Number", "Opportunity Name", "Account"];
 
@@ -133,6 +137,7 @@ export async function readOpportunitySheet(file: File): Promise<{ rows: Opportun
         value: get("value").replace(/[^0-9.]/g, ""), submission_date: asDate(get("submission_date")),
         presales_received: asDate(get("presales_received")),
         presales_lead: get("presales_lead"), account_manager: get("account_manager"), sow: get("sow"),
+        strategic: get("strategic"), previous_projects: get("previous_projects"),
       };
     });
   return { rows, matched: [...col.keys()] };
