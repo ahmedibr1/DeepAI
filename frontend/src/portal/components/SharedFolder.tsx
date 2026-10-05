@@ -20,6 +20,7 @@ export function SharedFolder({ opp, onChanged }: { opp: OpportunityDetail; onCha
   const [busy, setBusy] = useState(false);
   const failed = useRef<string | null>(null);      // a signature that could not be read, so it is not retried every tick
   const running = useRef(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
   const check = useCallback(async (h: DirHandle, signature: string | null) => {
@@ -85,11 +86,48 @@ export function SharedFolder({ opp, onChanged }: { opp: OpportunityDetail; onCha
     onChanged();
   };
 
+  // Manual upload: the same files the folder would hold, picked by hand. Always records a new version.
+  const upload = async (list: FileList | null) => {
+    const files = [...(list ?? [])];
+    if (!files.length) return;
+    setBusy(true); setWarnings([]);
+    try {
+      const entry = (f: File) => ({ name: f.name, size: f.size, modified: f.lastModified, file: f });
+      const pick = (re: RegExp) => files.filter((f) => re.test(f.name)).sort((a, b) => b.lastModified - a.lastModified)[0];
+      const deck = pick(/\.(pptx|json)$/i);
+      const sheet = pick(/\.xlsx$/i);
+      if (!deck && !sheet) { setWarnings(["Choose the DeepDive PowerPoint (.pptx) or draft (.json), and/or the Readiness checklist (.xlsx)."]); return; }
+      const s: FolderScan = { deepdive: deck ? entry(deck) : null, checklist: sheet ? entry(sheet) : null,
+        signature: `upload:${Date.now()}`, files: files.length };
+      const read = await readFolder(s);
+      setWarnings(read.warnings);
+      if (!read.data && !read.groups) return;
+      const res = await api.post<{ changed: boolean; version_number?: number }>(`/opportunities/${opp.id}/folder-import`, {
+        manual: true, signature: s.signature, data: read.data, groups: read.groups,
+        files: { deepdive: read.data ? deck?.name : null, checklist: read.groups ? sheet?.name : null },
+      });
+      if (res.changed) { toast(`DeepDive v${res.version_number} recorded from the uploaded file${files.length > 1 ? "s" : ""}.`); onChanged(); }
+    } catch (e) {
+      setWarnings([e instanceof Error ? e.message : "The files could not be read."]);
+    } finally { setBusy(false); }
+  };
+  const uploadButton = <>
+    <input ref={fileInput} type="file" hidden multiple accept=".pptx,.json,.xlsx"
+      onChange={(e) => { void upload(e.target.files); e.target.value = ""; }} />
+    <button className="btn ghost small" disabled={busy} onClick={() => fileInput.current?.click()}
+      title="Upload the DeepDive PowerPoint (or draft .json) and/or the Readiness checklist Excel">
+      <Icon name="doc" /> Upload DeepDive
+    </button>
+  </>;
+
   if (!folderSupported() && !handle) {
     return (
       <div className="folder-bar muted">
         <Icon name="archive" />
-        <span>Shared folders need Chrome or Microsoft Edge. Open the portal there to connect the opportunity’s folder.</span>
+        <span className="folder-text">Upload the DeepDive PowerPoint and Readiness checklist here. Watching a shared
+          folder needs Chrome or Microsoft Edge.</span>
+        {uploadButton}
+        {warnings.length > 0 && <ul className="folder-warn">{warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
       </div>
     );
   }
@@ -103,9 +141,10 @@ export function SharedFolder({ opp, onChanged }: { opp: OpportunityDetail; onCha
             <b>Shared folder</b>
             <span className="muted small">
               Connect the folder where the Presales Lead saves the DeepDive (PowerPoint from DeepDive Builder) and the
-              Readiness checklist (Excel). Each new file becomes a new DeepDive version.
+              Readiness checklist (Excel), or upload them by hand. Each new file becomes a new DeepDive version.
             </span>
           </div>
+          {uploadButton}
           <button className="btn primary small" disabled={busy} onClick={() => void connect()}>Connect folder</button>
         </>
       ) : (
@@ -125,6 +164,7 @@ export function SharedFolder({ opp, onChanged }: { opp: OpportunityDetail; onCha
           {perm !== "granted"
             ? <button className="btn primary small" onClick={() => void reconnect()}>Allow access</button>
             : <button className="btn ghost small" onClick={() => void check(handle, opp.folder_signature ?? null)}>Check now</button>}
+          {uploadButton}
           <button className="btn ghost small" onClick={() => void connect()}>Change</button>
           <button className="btn ghost small" onClick={() => void disconnect()}>Disconnect</button>
         </>

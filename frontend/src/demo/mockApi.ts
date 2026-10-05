@@ -899,19 +899,22 @@ const routes: [string, RegExp, Handler][] = [
   }],
   ["POST", /^\/opportunities\/([^/]+)\/folder-import$/, (m, body) => {
     const u = requireUser(); const o = getOpp(u, m[1]);
+    // Manual uploads always record a version and leave the folder's last-read marker alone.
+    const manual = !!body?.manual;
     const signature = String(body?.signature ?? "");
-    if (signature && signature === o.folder_signature) return { changed: false };
+    if (!manual && signature && signature === o.folder_signature) return { changed: false };
     const current = db.versions.find((x) => x.id === o.current_version_id)!;
     const data: Record<string, any> = body?.data && typeof body.data === "object" ? clone(body.data) : clone(current.data);
     if (Array.isArray(body?.groups)) data.groups = body.groups;
     const files = [body?.files?.deepdive, body?.files?.checklist].filter(Boolean).join(" + ");
-    const v = recordVersion(u, o, data, `From the shared folder: ${files || "folder files"}`, "folder_import");
-    o.folder_signature = signature || null;
+    const v = recordVersion(u, o, data, `${manual ? "Uploaded" : "From the shared folder"}: ${files || "DeepDive files"}`,
+      manual ? "manual_upload" : "folder_import");
+    if (!manual) o.folder_signature = signature || null;
     // A new DeepDive from the Presales Lead goes back to review (and a new DeepDive session) before AI analysis.
     if (o.status !== "completed" && o.status !== "submitted") {
       const from = o.status; o.status = "submitted";
       db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: v.id, action: "submit", from_status: from,
-        to_status: "submitted", actor_id: u.id, comment: "New DeepDive from the shared folder", created_at: now() });
+        to_status: "submitted", actor_id: u.id, comment: manual ? "New DeepDive uploaded" : "New DeepDive from the shared folder", created_at: now() });
     }
     persist();
     return { changed: true, version_number: v.version_number, version_id: v.id };

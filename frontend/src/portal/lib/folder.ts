@@ -105,13 +105,14 @@ export async function readFolder(scan: FolderScan): Promise<{ data: Record<strin
         ? await readEmbeddedData(JSZip, scan.deepdive.file)
         : JSON.parse(await scan.deepdive.file.text());
       if (!data) warnings.push(`${scan.deepdive.name} was not made with DeepDive Builder, so its content can’t be read.`);
-    } catch { warnings.push(`${scan.deepdive.name} could not be read.`); data = null; }
+    } catch { warnings.push(`${scan.deepdive.name} is not a DeepDive Builder PowerPoint or draft, so it could not be read.`); data = null; }
   }
   if (scan.checklist) {
     try { groups = await readTrackerXlsx(JSZip, scan.checklist.file); }
     catch (e) {
       const missing = (e as { missing?: string[] }).missing;
-      warnings.push(missing ? `${scan.checklist.name} is missing columns: ${missing.join(", ")}.` : `${scan.checklist.name} could not be read.`);
+      warnings.push(missing ? `${scan.checklist.name} is missing columns: ${missing.join(", ")}.`
+        : `${scan.checklist.name} is not a Readiness checklist from DeepDive Builder (sheet “Readiness Checklist” with Group, Component, Quote received… columns).`);
     }
   }
   return { data, groups, warnings };
