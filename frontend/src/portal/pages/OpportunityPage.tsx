@@ -7,6 +7,7 @@ import { SharedFolder } from "../components/SharedFolder";
 import { AiAnalysisTab, GovernanceTab, ReadinessTab, StepTrail, TrackerTab, type Workspace } from "../components/WorkspaceTabs";
 import { BuilderHost, type BuilderHandle } from "../components/BuilderHost";
 import { Icon } from "../components/Icon";
+import { SlidesTab } from "../components/SlidesTab";
 import { Empty, ErrorAlert, Modal, StatusBadge, useToast } from "../components/ui";
 import { fmtDate, fmtDateTime, timeAgo } from "../lib/format";
 
@@ -217,6 +218,7 @@ export function OpportunityPage() {
       <nav className="tabs" aria-label="Opportunity sections">
         <NavLink end to={`/opportunities/${opp.id}`} className={({ isActive }) => (isActive ? "active" : "")}>Overview</NavLink>
         <NavLink to={`/opportunities/${opp.id}/deepdive${versionQuery}`} className={({ isActive }) => (isActive ? "active" : "")}>DeepDive</NavLink>
+        <NavLink to={`/opportunities/${opp.id}/slides${versionQuery}`} className={({ isActive }) => (isActive ? "active" : "")}>Slides</NavLink>
         <NavLink to={`/opportunities/${opp.id}/review`} className={({ isActive }) => (isActive ? "active" : "")}>
           Review &amp; Governance
         </NavLink>
@@ -255,6 +257,7 @@ export function OpportunityPage() {
             </>}
           </div>
         } />
+        <Route path="slides" element={<SlidesTab opp={opp} versionId={selectedVersionId} />} />
         {/* Everything raised here goes into the DeepDive, so the DeepDive stays the single reference. */}
         <Route path="review" element={<GovernanceTab opp={opp} onChanged={() => { void load(); void loadWorkspace(); }} />} />
         {/* AI work lives in the DeepDive's AI Analysis step; older links land there. */}

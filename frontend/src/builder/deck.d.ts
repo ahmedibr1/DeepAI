@@ -4,3 +4,6 @@ export function readEmbeddedData(JSZip: Zip, file: Blob): Promise<Record<string,
 export function readTrackerXlsx(JSZip: Zip, file: Blob): Promise<{ name: string; rows: Record<string, string>[] }[]>;
 export function embedData(JSZip: Zip, blob: Blob, data: unknown): Promise<Blob>;
 export function buildTrackerXlsx(JSZip: Zip, S: unknown): Promise<Blob>;
+export function buildDeck(PptxGenJS: unknown, S: unknown, icons: Record<string, string>, coverPng?: string | null): {
+  write(o: { outputType: "blob" }): Promise<Blob>;
+};
