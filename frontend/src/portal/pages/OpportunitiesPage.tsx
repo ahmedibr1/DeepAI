@@ -81,9 +81,9 @@ export function OpportunitiesPage() {
               {ref.data?.statuses.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select></div>
           {showOwnerFilter && (
-            <div className="field"><label htmlFor="f-owner">Owner</label>
+            <div className="field"><label htmlFor="f-owner">Presales Lead</label>
               <select id="f-owner" value={params.get("owner_id") ?? ""} onChange={(e) => update("owner_id", e.target.value)}>
-                <option value="">Everyone</option>
+                <option value="">All Presales Leads</option>
                 {ref.data?.owners.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select></div>
           )}

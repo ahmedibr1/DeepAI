@@ -150,7 +150,7 @@ export function OpportunityPage() {
           <div className="meta-row">
             <StatusBadge status={opp.status} label={opp.status_label} />
             <span>Account <b>{opp.account_name}</b></span>
-            <span>Owner <b>{opp.owner.full_name}</b></span>
+            <span>Presales Lead <b>{opp.owner.full_name}</b></span>
             <span>Manager <b>{opp.manager?.full_name ?? "—"}</b></span>
             <span>Director <b>{opp.director?.full_name ?? "—"}</b></span>
             <span>Version <b>v{opp.current_version}</b></span>

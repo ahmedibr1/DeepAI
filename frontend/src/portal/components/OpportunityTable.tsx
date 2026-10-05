@@ -43,7 +43,7 @@ export function OpportunityCards({ rows, empty = "No opportunities yet.", onChan
             <div className="muted small">{o.opportunity_number} · {o.account_name}</div>
           </div>
           <dl>
-            <dt>Owner</dt><dd>{o.owner.full_name}</dd>
+            <dt>Presales Lead</dt><dd>{o.owner.full_name}</dd>
             <dt>Manager</dt><dd>{o.manager?.full_name ?? "—"}</dd>
             <dt>Director</dt><dd>{o.director?.full_name ?? "—"}</dd>
           </dl>
@@ -70,7 +70,7 @@ export function OpportunityTable({ rows, showOwner = true, emptyText = "No oppor
         <thead>
           <tr>
             <th scope="col">Opportunity</th><th scope="col">Account</th><th scope="col">Status</th>
-            {showOwner && <th scope="col">Owner</th>}
+            {showOwner && <th scope="col">Presales Lead</th>}
             <th scope="col">Manager</th><th scope="col">Version</th><th scope="col">AI</th><th scope="col">Updated</th>
           </tr>
         </thead>

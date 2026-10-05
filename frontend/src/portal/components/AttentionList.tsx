@@ -224,7 +224,7 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                   <th scope="col" className="c-center">Customer Submission Date<br /><span className="sub-head">(Days Remaining)</span></th>
                   <th scope="col" className="c-center">Attention</th>
                   <th scope="col">Attention (Why)</th>
-                  <th scope="col">Owner</th>
+                  <th scope="col">Presales Lead</th>
                   <th scope="col"><span className="vh">Actions</span></th>
                 </tr>
               </thead>
@@ -286,7 +286,7 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                           <span className={`attention-count att-${attentionTone(row.attention_count)}`}>{row.attention_count}</span>
                         </td>
                         <td className="small">{attentionType(row)}</td>
-                        <td className="truncate" title={row.owner ?? ""}>{row.owner ?? "—"}</td>
+                        <td className="wrap" dir="auto">{row.owner ?? "—"}</td>
                         <td className="cell-menu">
                           <button type="button" className="dots" aria-haspopup="menu"
                             aria-expanded={menuFor === row.id} aria-label={`Actions for ${row.title}`}

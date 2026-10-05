@@ -283,12 +283,20 @@ const actionsFor = (u: DUser, o: DOpp) => TRANSITIONS.filter((t) => t.action !==
 
 const versionsOf = (oppId: string) => db.versions.filter((v) => v.opportunity_id === oppId).sort((a, b) => b.version_number - a.version_number);
 
+/** The opportunity's Presales Lead: the name on its latest DeepDive (from the sheet's "Presales Lead" column or the
+    Builder), falling back to the portal user who owns it. Shown wherever the portal says who owns an opportunity. */
+function leadName(o: DOpp): string {
+  const v = db.versions.find((x) => x.id === o.current_version_id);
+  return String(v?.data?.presalesOwner ?? "").replace(/\s+/g, " ").trim() || user(o.owner_id)?.full_name || "—";
+}
+const leadRef = (o: DOpp) => ({ ...(ref(user(o.owner_id)) ?? { id: "", username: "" }), full_name: leadName(o) });
+
 function oppOut(o: DOpp) {
   const v = db.versions.find((x) => x.id === o.current_version_id);
   const t = team(o.team_id);
   return { id: o.id, opportunity_number: o.opportunity_number, title: o.title, account_name: o.account_name, status: o.status,
     status_label: STATUS_LABELS[o.status], opportunity_type: o.opportunity_type ?? null, vertical: o.vertical ?? null,
-    owner: ref(user(o.owner_id)), team_name: t?.name ?? null,
+    owner: leadRef(o), team_name: t?.name ?? null,
     manager: ref(user(o.manager_id)), director: ref(user(o.director_id)),
     ai_status: aiStatus(o), ai_status_label: AI_STATUS_LABELS[aiStatus(o)],
     current_version: v?.version_number ?? null, ai_readiness: o.ai_readiness,
@@ -413,7 +421,7 @@ function monitorRows(u: DUser) {
         status: o.status, status_label: STATUS_LABELS[o.status],
         opportunity_type: o.opportunity_type ?? null, vertical: o.vertical ?? null,
         portfolio: team(o.team_id)?.name ?? null,
-        owner: user(o.owner_id)?.full_name ?? null, manager: user(o.manager_id)?.full_name ?? null,
+        owner: leadName(o), manager: user(o.manager_id)?.full_name ?? null,
         director: user(o.director_id)?.full_name ?? null,
         estimated_value: value,
         presales_received: received, days_with_presales: received ? dayDiff(received, today) : null,
@@ -448,7 +456,7 @@ function attentionFor(u: DUser) {
       const ageDays = Math.floor((Date.now() - Date.parse(o.updated_at)) / 86400000);
       return {
         id: o.id, opportunity_number: o.opportunity_number, title: o.title, account_name: o.account_name,
-        status: o.status, owner: user(o.owner_id)?.full_name ?? null, manager: user(o.manager_id)?.full_name ?? null,
+        status: o.status, owner: leadName(o), manager: user(o.manager_id)?.full_name ?? null,
         director: user(o.director_id)?.full_name ?? null, nearest_due_date: nearest,
         is_overdue: !!nearest && nearest < today, overdue_days: overdueDays, undated_count: undated,
         days_since_update: Math.max(ageDays, 0), support_count: support.length, risk_count: risks.length,
@@ -711,11 +719,13 @@ const routes: [string, RegExp, Handler][] = [
   ["GET", /^\/meta\/reference$/, () => {
     const u = requireUser();
     const directors = db.users.filter((x) => x.role === "portfolio_director");
-    const owners = db.users.filter((x) => x.role === "presales_account");
+    // Presales Leads, by the names on the opportunities' DeepDives.
+    const owners = [...new Set(db.opportunities.filter((o) => !o.is_archived).map(leadName))]
+      .sort((a, b) => a.localeCompare(b)).map((n) => ({ id: n, username: n, full_name: n }));
     return { roles: (Object.keys(ROLE_LABELS) as RoleKey[]).map((k) => ({ key: k, label: ROLE_LABELS[k] })),
       statuses: Object.entries(STATUS_LABELS).map(([key, label]) => ({ key, label })),
       directors: directors.map(ref),
-      owners: u.role === "presales_account" ? [] : owners.map(ref),
+      owners: u.role === "presales_account" ? [] : owners,
       managers: db.users.filter((x) => x.role === "portfolio_manager").map(ref),
       document_categories: DOCUMENT_CATEGORIES.map((c) => ({ key: c.value, label: c.label })),
       comment_types: COMMENT_TYPES.map((key) => ({ key, label: key.replace(/_/g, " ").replace(/^\w/, (m) => m.toUpperCase()) })),
@@ -733,7 +743,7 @@ const routes: [string, RegExp, Handler][] = [
     const like = (k: string, val: string | null) => { if (val) rows = rows.filter((o) => (o as any)[k].toLowerCase().includes(val.toLowerCase())); };
     like("account_name", q.get("account")); like("opportunity_number", q.get("number"));
     if (statuses.length) rows = rows.filter((o) => statuses.includes(o.status));
-    if (q.get("owner_id")) rows = rows.filter((o) => o.owner_id === q.get("owner_id"));
+    if (q.get("owner_id")) rows = rows.filter((o) => leadName(o) === q.get("owner_id"));
     if (q.get("director_id")) rows = rows.filter((o) => team(o.team_id)?.director_id === q.get("director_id"));
     if (q.get("critical")) rows = rows.filter((o) => o.has_critical_findings);
     if (q.get("active")) rows = rows.filter((o) => o.status !== "completed");
@@ -1258,7 +1268,7 @@ const routes: [string, RegExp, Handler][] = [
     const u = requireUser();
     return visible(u).filter((o) => !o.is_archived).map((o) => ({
       id: o.id, opportunity_number: o.opportunity_number, title: o.title, account_name: o.account_name,
-      owner: user(o.owner_id)?.full_name ?? null, status: o.status, status_label: STATUS_LABELS[o.status],
+      owner: leadName(o), status: o.status, status_label: STATUS_LABELS[o.status],
       submission_date: String((versionsOf(o.id).find((v) => v.id === o.current_version_id)?.data ?? {}).submissionDate ?? "").slice(0, 10) || null,
       analyses: analysesFor(o).map((a) => ({ kind: a.kind, title: a.title, status: a.status, missing: a.missing })),
       findings: (db.findings ?? []).filter((f) => findingOpp(f.id) === o.id)

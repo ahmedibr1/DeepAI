@@ -76,7 +76,7 @@ export function AiRecommendationsPage() {
           <div className="table-wrap">
             <table className="data">
               <thead><tr>
-                <th>Opportunity</th><th>Owner</th><th>Submission</th><th>Analyses</th><th>Open findings</th><th>Status</th><th />
+                <th>Opportunity</th><th>Presales Lead</th><th>Submission</th><th>Analyses</th><th>Open findings</th><th>Status</th><th />
               </tr></thead>
               <tbody>
                 {shown.map((r) => (
