@@ -3,7 +3,7 @@
  * versioning and validation rules as the FastAPI backend. There is no real security here:
  * the demo exists so the Phase 1 workflow can be tried without installing anything.
  */
-import SAMPLE from "./sampleDeepDive.json";
+import SEED from "./seedData.json";
 import { analyse as analyseWorkspace, type Finding } from "./analyst";
 import { analysisInputs, eligibility, snapshot } from "./workspace";
 import { analyse, checkGrounding, chunkText, SAMPLE_RFP, type DemoChunk } from "./demoAi";
@@ -14,7 +14,7 @@ import { AI_STATUS_LABELS, ALLOWED_EXTENSIONS, attentionItems, COMMENT_TYPES, DE
 
 // The key carries the shape version: when the demo model changes, older saved data is ignored rather
 // than half-loaded, so nobody gets a broken page after an update.
-const KEY = "pp-demo-v5";
+const KEY = "pp-demo-v6";
 const AI_DEFAULTS = {
   generation: { temperature: 0.2, max_output_tokens: 4000, response_format: "json" },
   retrieval: { top_k: 12, min_score: 0.25, rerank: false },
@@ -30,7 +30,7 @@ Rules:
 - Separate confirmed information, management observations, AI inference and missing information.
 - Judge readiness across opportunity understanding, technical, commercial, partner, proposal, risk,
   director concerns and customer requirement coverage.`;
-for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3"]) {
+for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3", "pp-demo-v4", "pp-demo-v5"]) {
   try { localStorage.removeItem(stale); } catch { /* storage may be unavailable */ }
 }
 export const DEMO_PASSWORD = "Demo2026pass";
@@ -70,97 +70,11 @@ const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
+/** Starting data: the opportunities from the CRM "Opportunity Advanced Find View", with the DeepDives already
+    uploaded for KAU, King Saud University, IAU and the Islamic University. Regenerate it by importing the sheet and
+    uploading the DeepDives in the demo, then saving the stored data. */
 function seed(): DB {
-  const t = now();
-  const mk = (username: string, full_name: string, role: RoleKey, team_id: string | null = null): DUser =>
-    ({ id: uid(), username, full_name, email: `${username}@solutions.example`, role, team_id, is_active: true,
-       must_change_password: false, locked: false, last_login_at: null, created_at: t, password: DEMO_PASSWORD });
-  const admin = mk("admin", "Portal Administrator", "admin");
-  const cco = mk("cco", "CCO", "cco");
-
-  // ---- Presales line
-  const gm = mk("a.alhaqbani", "Abdulrahman Alhaqbani", "presales_gm");
-  const dir = mk("a.aloulah", "Ahmed AlOulah", "portfolio_director");
-  const mgr = mk("m.alasadi", "Mohammed Alasadi", "portfolio_manager");
-
-  // ---- Sales line
-  const salesGm = mk("f.mulla", "Feras Mulla", "sales_gm");
-  const sdHousing = mk("m.hani", "Mohammed Hani", "sales_director");
-  const sdMega = mk("a.alkhulayfi", "Abdullah Alkhulayfi", "sales_director");
-  const sdEducation = mk("t.alhammouri", "Talal Al-Hammouri", "sales_director");
-
-  // One portfolio, with its sales GM and presales line
-  const team: DTeam = { id: uid(), name: "Portfolio 4", director_id: dir.id, manager_id: mgr.id,
-                        sales_gm_id: salesGm.id, is_active: true };
-
-  // Presales Leads sit in the portfolio
-  const leads = [
-    ["m.rabie", "Mohammed Rabie"], ["h.abdeljawad", "Hossam Abdeljawad"], ["t.mohamed", "Taha Mohamed"],
-    ["g.alshafloot", "Ghadah Alshafloot"], ["n.almousa", "Norah Fahd Almousa"],
-  ].map(([u, n]) => mk(u, n, "presales_account", team.id));
-
-  // Verticals, each with its Sales Director and Account Managers
-  const verticals: DVertical[] = [
-    { id: uid(), name: "Housing & Construction Services", is_active: true, sales_director_id: sdHousing.id },
-    { id: uid(), name: "Mega Accounts", is_active: true, sales_director_id: sdMega.id },
-    { id: uid(), name: "Education", is_active: true, sales_director_id: sdEducation.id },
-  ];
-  const am = (username: string, name: string, vertical: DVertical) =>
-    ({ ...mk(username, name, "account_manager"), vertical_id: vertical.id });
-  const accountManagers = [
-    am("m.algendi", "Mahmoud AlGendi", verticals[0]), am("e.kayal", "Eyad Kayal", verticals[0]),
-    am("a.altowim", "Alanoud Altowim", verticals[0]), am("a.shirbini", "Ahmed S. Shirbini", verticals[0]),
-    am("m.albawsh", "Mohammed A. Albawsh", verticals[0]), am("s.almutairi", "Satam Almutairi", verticals[0]),
-    am("z.alarfaj", "Zaid Alarfaj", verticals[0]),
-    am("s.halawany", "Saleh Halawany", verticals[1]), am("m.alageel", "Mohammed AlAgeel", verticals[1]),
-    am("a.aldowish", "Abdullah Aldowish", verticals[1]),
-  ];
-  // Education: Talal Al-Hammouri acts as both Sales Director and Account Manager
-  sdEducation.vertical_id = verticals[2].id;
-
-  const pres = leads[0];
-  const pres3 = leads[1];
-  const db: DB = {
-    users: [admin, cco, gm, dir, mgr, salesGm, sdHousing, sdMega, sdEducation, ...leads, ...accountManagers],
-    teams: [team], opportunities: [], verticals, findings: [], analyses: [], tracker: [],
-                   versions: [], history: [], notifications: [], audit: [], documents: [], comments: [],
-                   decisions: [], runs: [], seq: 1, session: null };
-
-  // A ready-made opportunity in Draft, with the Red Sea Global DeepDive already filled in.
-  const opp: DOpp = { id: uid(), opportunity_number: "OP-2026-159388", title: "Environment and Sustainability Solution",
-    account_name: "Red Sea Global", opportunity_type: "RFP", vertical: "Mega Accounts",
-    status: "draft", owner_id: pres.id, team_id: team.id,
-    manager_id: mgr.id, director_id: dir.id, current_version_id: "",
-    ai_readiness: null, has_critical_findings: false, created_at: t, updated_at: t };
-  const v: DVersion = { id: uid(), opportunity_id: opp.id, version_number: 1, change_notes: "Initial version",
-    is_locked: false, locked_at: null, submitted_at: null, revision: 3, created_at: t, updated_at: t,
-    created_by: pres.id, updated_by: pres.id, data: clone(SAMPLE) as Record<string, any> };
-  opp.current_version_id = v.id;
-  db.opportunities.push(opp); db.versions.push(v);
-  db.history.push({ id: db.seq++, opportunity_id: opp.id, version_id: v.id, action: "create", from_status: null,
-    to_status: "draft", actor_id: pres.id, comment: null, created_at: t });
-  // A sample customer RFP, already attached, so the AI analysis has something real to cross-check.
-  const rfp: DDocument = { id: uid(), opportunity_id: opp.id, version_id: v.id, logical_id: uid(), doc_version: 1,
-    category: "rfp", file_name: "Red_Sea_Global_RFP_extract.txt", file_extension: "txt", mime_type: "text/plain",
-    size_bytes: SAMPLE_RFP.length, sha256: "sample", uploaded_by: pres.id, uploaded_at: t, deleted_at: null };
-  db.documents.push(rfp);
-  fileBytes.set(rfp.id, new Blob([SAMPLE_RFP], { type: "text/plain" }));
-
-  // A second opportunity, owned by another team, to show that scoping really applies.
-  const opp2: DOpp = { id: uid(), opportunity_number: "OP-2026-160021", title: "Hospital Network Modernisation",
-    account_name: "Ministry of Health", opportunity_type: "RFI", vertical: null,   // no vertical assigned yet: the table shows an em dash
-    status: "draft", owner_id: pres3.id, team_id: team.id,
-    manager_id: null, director_id: dir.id, current_version_id: "",
-    ai_readiness: null, has_critical_findings: false, created_at: t, updated_at: t };
-  const v2: DVersion = { id: uid(), opportunity_id: opp2.id, version_number: 1, change_notes: "Initial version",
-    is_locked: false, locked_at: null, submitted_at: null, revision: 0, created_at: t, updated_at: t,
-    created_by: pres3.id, updated_by: pres3.id,
-    data: { customer: "Ministry of Health", oppName: "Hospital Network Modernisation", oppNumber: "OP-2026-160021", presalesOwner: "Khalid Alharbi" } };
-  opp2.current_version_id = v2.id;
-  db.opportunities.push(opp2); db.versions.push(v2);
-  db.history.push({ id: db.seq++, opportunity_id: opp2.id, version_id: v2.id, action: "create", from_status: null,
-    to_status: "draft", actor_id: pres3.id, comment: null, created_at: t });
-  return db;
+  return clone(SEED) as unknown as DB;
 }
 
 let db: DB = load();

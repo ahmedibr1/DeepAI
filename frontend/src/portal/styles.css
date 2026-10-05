@@ -267,22 +267,23 @@ table.monitor-table tbody tr:hover td{background:#FCFAFE}
 table.monitor-table tr.expanded td{background:#FAF6FE}
 table.monitor-table .c-right{text-align:right}
 table.monitor-table .c-center{text-align:center}
-table.monitor-table th:nth-child(1){width:3%}
-table.monitor-table th:nth-child(2){width:9.5%}
-table.monitor-table th:nth-child(3){width:11%}
-table.monitor-table th:nth-child(4){width:22%}
-table.monitor-table th:nth-child(5){width:4%}
-table.monitor-table th:nth-child(6){width:7%}
-table.monitor-table th:nth-child(7){width:8%}
-table.monitor-table th:nth-child(8){width:8%}
-table.monitor-table th:nth-child(9){width:9%}
-table.monitor-table th:nth-child(10){width:11.5%}
-table.monitor-table th:nth-child(11){width:6%}
-table.monitor-table th:nth-child(12){width:9%}
-table.monitor-table th:nth-child(13){width:9.5%}
+table.monitor-table th:nth-child(1){width:4.5%}
+table.monitor-table th:nth-child(2){width:10.5%}
+table.monitor-table th:nth-child(3){width:10%}
+table.monitor-table th:nth-child(4){width:19%}
+table.monitor-table th:nth-child(5){width:3.5%}
+table.monitor-table th:nth-child(6){width:6%}
+table.monitor-table th:nth-child(7){width:6%}
+table.monitor-table th:nth-child(8){width:7%}
+table.monitor-table th:nth-child(9){width:7%}
+table.monitor-table th:nth-child(10){width:9%}
+table.monitor-table th:nth-child(11){width:5%}
+table.monitor-table th:nth-child(12){width:6.5%}
+table.monitor-table th:nth-child(13){width:6%}
 table.monitor-table th:nth-child(14){width:4%}
 .truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Names in the dashboard monitor are shown in full, wrapping onto more lines (Arabic reads right to left). */
+table.monitor-table td.num .op-link{white-space:nowrap}
 table.monitor-table td.wrap{white-space:normal;overflow-wrap:anywhere;line-height:1.4}
 table.monitor-table td.wrap.wide{font-weight:700;color:var(--purple-deep)}
 table.monitor-table td.wrap[dir="auto"]{text-align:start}
@@ -501,8 +502,8 @@ table.monitor-table tr.expanded td:first-child{box-shadow:inset 3px 0 0 var(--pu
   table.monitor-table th:nth-child(9),table.monitor-table td:nth-child(9),
   table.monitor-table th:nth-child(12),table.monitor-table td:nth-child(12),
   table.monitor-table th:nth-child(13),table.monitor-table td:nth-child(13){display:none}
-  table.monitor-table th:nth-child(1){width:3%} table.monitor-table th:nth-child(4){width:auto}
-  table.monitor-table th:nth-child(10){width:11.5%} table.monitor-table th:nth-child(11){width:6%}
+  table.monitor-table th:nth-child(1){width:4.5%} table.monitor-table th:nth-child(4){width:auto}
+  table.monitor-table th:nth-child(10){width:9%} table.monitor-table th:nth-child(11){width:5%}
   table.monitor-table th:nth-child(14){width:4%}
   .date-pill{min-width:0;font-size:11px;padding:4px 6px}
   .attention-count{min-width:28px;height:26px;padding:0 6px}
