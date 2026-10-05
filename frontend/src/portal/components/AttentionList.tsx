@@ -11,6 +11,7 @@ import type { MonitorRow } from "../api/types";
 import { fmtDate } from "../lib/format";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 import { Icon } from "./Icon";
+import { MeetingBrief } from "./MeetingBrief";
 
 const nf = new Intl.NumberFormat("en-US");
 // Every qualifying opportunity on one page: the entry criteria already keep the list short.
@@ -178,6 +179,22 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
+  // Print / save as PDF: one A4 landscape page, scaled down when the list is long.
+  const printBrief = () => {
+    const el = document.querySelector<HTMLElement>(".meeting-brief");
+    if (el) {
+      el.style.zoom = "1"; el.style.width = "";
+      el.classList.add("measure");
+      const pageH = (190 * 96) / 25.4;          // A4 landscape height inside 10 mm margins
+      const h = el.scrollHeight;
+      el.classList.remove("measure");
+      const zoom = h > pageH ? Math.floor((pageH / h) * 1000) / 1000 : 1;
+      el.style.zoom = String(zoom);
+      el.style.width = `${277 / zoom}mm`;            // still fills the page width once scaled
+    }
+    window.print();
+  };
+
   const toggle = (id: string) => setOpen((prev) => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -204,6 +221,11 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
             {SORTS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </label>
+        <button type="button" className="btn ghost small print-btn" disabled={!filtered.length} onClick={printBrief}
+          title="One-page brief of the opportunities listed here — choose “Save as PDF” to keep it">
+          <Icon name="download" /> Print / PDF
+        </button>
+        <MeetingBrief rows={filtered} />
       </div>
 
       {filtered.length === 0 ? <Empty title="No active opportunities" /> : (
