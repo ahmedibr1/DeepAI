@@ -269,11 +269,11 @@ table.monitor-table .c-right{text-align:right}
 table.monitor-table .c-center{text-align:center}
 table.monitor-table th:nth-child(1){width:3%}
 table.monitor-table th:nth-child(2){width:9.5%}
-table.monitor-table th:nth-child(3){width:8.5%}
-table.monitor-table th:nth-child(4){width:14%}
+table.monitor-table th:nth-child(3){width:11%}
+table.monitor-table th:nth-child(4){width:22%}
 table.monitor-table th:nth-child(5){width:4%}
-table.monitor-table th:nth-child(6){width:10%}
-table.monitor-table th:nth-child(7){width:11%}
+table.monitor-table th:nth-child(6){width:7%}
+table.monitor-table th:nth-child(7){width:8%}
 table.monitor-table th:nth-child(8){width:8%}
 table.monitor-table th:nth-child(9){width:9%}
 table.monitor-table th:nth-child(10){width:11.5%}
@@ -282,6 +282,10 @@ table.monitor-table th:nth-child(12){width:9%}
 table.monitor-table th:nth-child(13){width:9.5%}
 table.monitor-table th:nth-child(14){width:4%}
 .truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Names in the dashboard monitor are shown in full, wrapping onto more lines (Arabic reads right to left). */
+table.monitor-table td.wrap{white-space:normal;overflow-wrap:anywhere;line-height:1.4}
+table.monitor-table td.wrap.wide{font-weight:700;color:var(--purple-deep)}
+table.monitor-table td.wrap[dir="auto"]{text-align:start}
 table.monitor-table td.num{white-space:nowrap}
 table.monitor-table td:nth-child(12){white-space:normal}
 table.monitor-table td:nth-child(8){white-space:nowrap}

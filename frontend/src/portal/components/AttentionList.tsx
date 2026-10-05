@@ -252,8 +252,8 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                           )}
 
                         </td>
-                        <td className="truncate" title={row.account_name}>{row.account_name}</td>
-                        <td className="truncate wide" title={row.title}>
+                        <td className="wrap" dir="auto">{row.account_name}</td>
+                        <td className="wrap wide" dir="auto">
                           {row.title}
                           {/* shown on phones, where the account column is hidden */}
                           <span className="sub-line">{row.opportunity_number} · {row.account_name}</span>
