@@ -22,6 +22,8 @@ export interface OpportunityListItem {
   manager: UserRef | null; director: UserRef | null; ai_status: string; ai_status_label: string;
   current_version: number | null; ai_readiness: string | null; has_critical_findings: boolean;
   created_at: string; updated_at: string;
+  /** "manual": added by hand and flagged, never changed by the opportunities sheet. "sheet": kept in step with it. */
+  source?: "manual" | "sheet";
 }
 
 export interface WorkflowAction { action: string; label: string; requires_comment: boolean; enabled: boolean }
@@ -29,6 +31,8 @@ export interface WorkflowAction { action: string; label: string; requires_commen
 export interface OpportunityDetail extends OpportunityListItem {
   current_version_id: string | null; can_edit: boolean; can_create_version: boolean; can_view_ai: boolean;
   can_delete: boolean; is_archived: boolean;
+  /** The opportunity's shared folder (name only; access stays in this browser) and what was last read from it. */
+  folder_name?: string | null; folder_signature?: string | null;
   actions: WorkflowAction[];
 }
 

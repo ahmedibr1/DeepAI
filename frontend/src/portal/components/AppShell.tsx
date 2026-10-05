@@ -81,6 +81,8 @@ function Notifications() {
 
 export function AppShell() {
   const { me, can, logout } = useAuth();
+  // The demo runs as a single-user portal (one Presales Director), so there is no sign-out.
+  const singleUser = !!(window as unknown as { __DEEPAI_SINGLE_USER__?: boolean }).__DEEPAI_SINGLE_USER__;
   const [userOpen, setUserOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);   // phones: the sidebar slides in over the content
   const location = useLocation();
@@ -147,7 +149,9 @@ export function AppShell() {
                   <b>{me?.full_name}</b>
                   <span className="muted small">{me?.role_label}</span>
                 </div>
-                <button type="button" role="menuitem" onClick={() => void logout()}><Icon name="logout" /> Sign out</button>
+                {!singleUser && (
+                  <button type="button" role="menuitem" onClick={() => void logout()}><Icon name="logout" /> Sign out</button>
+                )}
               </div>
             )}
           </div>

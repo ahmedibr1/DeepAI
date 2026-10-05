@@ -6,6 +6,7 @@ import { opportunitiesLabel, PERM, useAuth } from "../auth/AuthContext";
 import { OpportunityCards } from "../components/OpportunityTable";
 import { ErrorAlert, PageHeader } from "../components/ui";
 import { useAsync } from "../lib/useAsync";
+import { SheetImport } from "../components/SheetImport";
 
 const FILTER_KEYS = ["q", "account", "number", "owner_id", "director_id", "ai_readiness", "updated_from",
   "updated_to", "critical", "attention", "open_comments", "archived", "assigned_to_me", "active"] as const;
@@ -48,7 +49,10 @@ export function OpportunitiesPage() {
   return (
     <main className="content">
       <PageHeader title={params.get("active") === "1" ? "Active opportunities" : opportunitiesLabel(me)} lede={list.data ? `${list.data.total} opportunit${list.data.total === 1 ? "y" : "ies"}` : undefined}
-        actions={can(PERM.OPP_CREATE) && <Link className="btn primary" to="/opportunities/new">Create opportunity</Link>} />
+        actions={can(PERM.OPP_CREATE) && <>
+          <SheetImport onDone={() => void list.reload()} />
+          <Link className="btn primary" to="/opportunities/new">Create opportunity</Link>
+        </>} />
       <ErrorAlert error={list.error ?? ref.error} />
       {activeOnly && <div className="alert info" style={{ marginBottom: 14 }}>
         Everything the team is still working on. An opportunity leaves this list when management closes it,

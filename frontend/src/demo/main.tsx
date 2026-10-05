@@ -7,7 +7,6 @@ import App from "../portal/App";
 import { AuthProvider } from "../portal/auth/AuthContext";
 import { ToastProvider } from "../portal/components/ui";
 import "../portal/styles.css";
-import { DemoBar } from "./DemoBar";
 import { DemoErrorBoundary } from "./ErrorBoundary";
 import "./demo.css";
 import { applyAppearance } from "../portal/pages/admin/AppearancePage";
@@ -16,8 +15,11 @@ applyAppearance();
 import { installMockApi } from "./mockApi";
 
 import "./injectBuilder";
+import "./folderTestHook";
 
 installMockApi();
+// One person uses this portal; the shell hides sign-out and account switching.
+(window as unknown as { __DEEPAI_SINGLE_USER__?: boolean }).__DEEPAI_SINGLE_USER__ = true;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -26,7 +28,6 @@ createRoot(document.getElementById("root")!).render(
         <AuthProvider>
           <ToastProvider>
             <App />
-            <DemoBar />
           </ToastProvider>
         </AuthProvider>
       </DemoErrorBoundary>

@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, usePa
 import { api, ApiError } from "../api/client";
 import type { HistoryItem, OpportunityDetail, VersionDetail, VersionSummary, WorkflowAction } from "../api/types";
 import { AiSummary } from "../components/AnalysisOutputs";
+import { SharedFolder } from "../components/SharedFolder";
 import { AiAnalysisTab, GovernanceTab, ReadinessTab, StepTrail, TrackerTab, type Workspace } from "../components/WorkspaceTabs";
 import { BuilderHost, type BuilderHandle } from "../components/BuilderHost";
 import { Icon } from "../components/Icon";
@@ -183,9 +184,9 @@ export function OpportunityPage() {
 
       {lockedForEditing && opp.can_create_version && (
         <div className="alert info" style={{ marginBottom: 16 }}>
-          <b>v{current?.version_number} was submitted, so it can no longer be edited.</b> That is what keeps the review
-          comments and any AI result tied to exactly what was reviewed. To change anything, open a new version: the
-          owner, the Portfolio Presales Manager and the Portfolio Presales Director can all do that.
+          <b>v{current?.version_number} is a recorded version and stays as it is.</b> New versions come from the shared
+          folder (a new DeepDive PowerPoint or Readiness checklist from the Presales Lead) or from an item added under
+          Review &amp; Governance, so every AI result stays tied to exactly what was reviewed.
         </div>
       )}
       
@@ -235,9 +236,11 @@ export function OpportunityPage() {
         <Route path="tracker" element={workspace
           ? <TrackerTab opp={opp} workspace={workspace} onChanged={() => { void load(); void loadWorkspace(); }} />
           : <p className="muted">Loading…</p>} />
-        <Route path="readiness" element={<ReadinessTab opp={opp} versionId={selectedVersionId} />} />
+        {/* Always the latest DeepDive version: that is what the team is working to. */}
+        <Route path="readiness" element={<ReadinessTab opp={opp} versionId={opp.current_version_id} />} />
         <Route path="deepdive" element={
           <div className="card" style={{ overflow: "hidden", margin: "0 -8px" }}>
+            <SharedFolder opp={opp} onChanged={() => { void load(); void loadWorkspace(); }} />
             {/* Review & Governance has its own section, so the DeepDive shows its two steps only */}
             {workspace && (
               <StepTrail active={step} steps={workspace.steps.filter((s) => s.key !== "review")}
@@ -253,7 +256,7 @@ export function OpportunityPage() {
           </div>
         } />
         {/* Everything raised here goes into the DeepDive, so the DeepDive stays the single reference. */}
-        <Route path="review" element={<GovernanceTab opp={opp} />} />
+        <Route path="review" element={<GovernanceTab opp={opp} onChanged={() => { void load(); void loadWorkspace(); }} />} />
         {/* AI work lives in the DeepDive's AI Analysis step; older links land there. */}
         <Route path="ai" element={<Navigate to={`/opportunities/${opp.id}/deepdive?step=ai`} replace />} />
         <Route path="ai-recommendations" element={<Navigate to={`/opportunities/${opp.id}/deepdive?step=ai`} replace />} />

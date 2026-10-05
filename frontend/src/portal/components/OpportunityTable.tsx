@@ -12,6 +12,7 @@ export function OpportunityCards({ rows, empty = "No opportunities yet." }: { ro
         <Link key={o.id} to={`/opportunities/${o.id}`} className="opp-card">
           <div className="top">
             <StatusBadge status={o.status} label={o.status_label} />
+            {o.source === "manual" && <span className="flag-chip" title="Added by hand — the opportunities sheet never changes it">⚑ Manual</span>}
             <span className="muted small">{timeAgo(o.updated_at)}</span>
           </div>
           <div>

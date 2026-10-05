@@ -38,7 +38,8 @@ export const PERMISSIONS: Record<RoleKey, string[]> = {
           "dashboard.executive"],
   cco: MANAGEMENT,
   presales_gm: MANAGEMENT,
-  portfolio_director: MANAGEMENT,
+  // The Presales Director runs the single-user portal, so they also create and edit opportunities.
+  portfolio_director: [...MANAGEMENT, "opportunity.create", "opportunity.edit_own", "document.upload"],
   portfolio_manager: MANAGEMENT,
   presales_account: ["opportunity.view_own", "opportunity.create", "opportunity.edit_own", "opportunity.submit",
                      "opportunity.delete_own", "document.upload", "document.view", "review.view", "ai.view"],

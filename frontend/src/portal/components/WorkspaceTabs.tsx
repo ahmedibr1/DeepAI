@@ -7,6 +7,7 @@ import { fmtDate, fmtDateTime } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
 import { belongsTo, OutputCards, OUTPUTS } from "./AnalysisOutputs";
 import { Icon } from "./Icon";
+import { getFolder, permission, writeDraft } from "../lib/folder";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 
 export interface Workspace {
@@ -536,7 +537,7 @@ function Avatar({ name }: { name: string }) {
 
 /** Review & Governance: anyone on the opportunity adds a Risk or a Support Needed item; each one lands in the
     latest DeepDive version (or the next one, once the latest is submitted). */
-export function GovernanceTab({ opp }: { opp: OpportunityDetail }) {
+export function GovernanceTab({ opp, onChanged }: { opp: OpportunityDetail; onChanged?: () => void }) {
   const list = useAsync(() => api.get<GovernanceList>(`/opportunities/${opp.id}/governance`), [opp.id, opp.current_version]);
   const [tab, setTab] = useState<"all" | "open" | "closed">("all");
   const [query, setQuery] = useState("");
@@ -592,9 +593,7 @@ export function GovernanceTab({ opp }: { opp: OpportunityDetail }) {
         <div>
           <b>Add items for this opportunity (latest version: v{latest}).</b>
           <p>
-            Anyone can add an item. {data?.latest_locked
-              ? `v${latest} is submitted, so new items go into the next DeepDive version when it is opened.`
-              : "It will be added to the latest DeepDive version automatically."}
+            Each item is added to the DeepDive as a new version{opp.folder_name ? ` and saved to the shared folder “${opp.folder_name}”` : ""}, so the DeepDive stays the single reference.
           </p>
         </div>
         {data?.can_add && (
@@ -686,21 +685,22 @@ export function GovernanceTab({ opp }: { opp: OpportunityDetail }) {
       </section>
 
       {drawer && data && (
-        <AddItemDrawer opp={opp} latest={latest ?? null} latestLocked={data.latest_locked} owners={data.owners}
+        <AddItemDrawer opp={opp} owners={data.owners}
           onClose={() => setDrawer(false)}
-          onAdded={async (kind) => {
+          onAdded={async (kind, version, savedTo) => {
             setDrawer(false);
-            toast(kind === "risk" ? "Risk added — it is in the DeepDive." : "Support need added — it is in the DeepDive.");
+            toast(`${kind === "risk" ? "Risk" : "Support need"} added — DeepDive v${version}${savedTo ? ` saved to ${savedTo}` : ""}.`);
             await list.reload();
+            onChanged?.();
           }} />
       )}
     </>
   );
 }
 
-function AddItemDrawer({ opp, latest, latestLocked, owners, onClose, onAdded }: {
-  opp: OpportunityDetail; latest: number | null; latestLocked: boolean; owners: { name: string; role: string }[];
-  onClose: () => void; onAdded: (kind: "risk" | "support") => void | Promise<void>;
+function AddItemDrawer({ opp, owners, onClose, onAdded }: {
+  opp: OpportunityDetail; owners: { name: string; role: string }[];
+  onClose: () => void; onAdded: (kind: "risk" | "support", version: number, savedTo: string | null) => void | Promise<void>;
 }) {
   const [kind, setKind] = useState<"risk" | "support">("risk");
   const [title, setTitle] = useState("");
@@ -715,8 +715,19 @@ function AddItemDrawer({ opp, latest, latestLocked, owners, onClose, onAdded }: 
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post(`/opportunities/${opp.id}/governance`, { kind, title, detail, impact, owner, due_date: due || null });
-      await onAdded(kind);
+      const res = await api.post<{ version_number: number; data: unknown; opportunity_number: string }>(
+        `/opportunities/${opp.id}/governance`, { kind, title, detail, impact, owner, due_date: due || null });
+      // Write the new version into the shared folder as a Builder draft, so the Presales Lead continues from it.
+      let savedTo: string | null = null;
+      try {
+        const folder = await getFolder(opp.id);
+        if (folder && (await permission(folder, true, "readwrite")) === "granted") {
+          const name = `${res.opportunity_number}_DeepAI_v${res.version_number}.json`;
+          await writeDraft(folder, name, res.data);
+          savedTo = `${folder.name}/${name}`;
+        }
+      } catch { /* the version is recorded in the portal either way */ }
+      await onAdded(kind, res.version_number, savedTo);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
@@ -727,9 +738,9 @@ function AddItemDrawer({ opp, latest, latestLocked, owners, onClose, onAdded }: 
         <header>
           <div>
             <h2 id="drawer-title">Add Item</h2>
-            <p className="muted small">{latestLocked
-              ? `v${latest} is submitted, so this will be added to the next DeepDive version.`
-              : `This will be added to the latest DeepDive version${latest ? ` (v${latest})` : ""}.`}</p>
+            <p className="muted small">
+              Added to the DeepDive as a new version{opp.folder_name ? ` and saved to the shared folder “${opp.folder_name}”` : ""}.
+            </p>
           </div>
           <button type="button" className="drawer-close" aria-label="Close" onClick={onClose}><Icon name="x" /></button>
         </header>

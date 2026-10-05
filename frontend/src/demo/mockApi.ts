@@ -38,7 +38,7 @@ export const DEMO_PASSWORD = "Demo2026pass";
 interface DUser { id: string; username: string; full_name: string; vertical_id?: string | null; email: string | null; role: RoleKey; team_id: string | null; is_active: boolean; must_change_password: boolean; locked: boolean; last_login_at: string | null; created_at: string; password: string }
 interface DTeam { id: string; name: string; director_id: string | null; manager_id: string | null; sales_gm_id?: string | null; is_active: boolean }
 interface DVersion { id: string; opportunity_id: string; version_number: number; change_notes: string | null; is_locked: boolean; locked_at: string | null; submitted_at: string | null; revision: number; created_at: string; updated_at: string; created_by: string; updated_by: string; data: Record<string, any> }
-interface DOpp { session_confirmed_by?: string | null; session_confirmed_at?: string | null; session_confirmed_version_id?: string | null; id: string; opportunity_number: string; title: string; account_name: string; opportunity_type?: string | null; vertical?: string | null; status: string; owner_id: string; team_id: string | null; manager_id: string | null; director_id: string | null; is_archived?: boolean; current_version_id: string; ai_readiness: string | null; has_critical_findings: boolean; created_at: string; updated_at: string }
+interface DOpp { session_confirmed_by?: string | null; session_confirmed_at?: string | null; session_confirmed_version_id?: string | null; id: string; opportunity_number: string; title: string; account_name: string; opportunity_type?: string | null; vertical?: string | null; status: string; owner_id: string; team_id: string | null; manager_id: string | null; director_id: string | null; is_archived?: boolean; source?: "manual" | "sheet"; folder_name?: string | null; folder_signature?: string | null; current_version_id: string; ai_readiness: string | null; has_critical_findings: boolean; created_at: string; updated_at: string }
 interface DHistory { id: number; opportunity_id: string; version_id: string; action: string; from_status: string | null; to_status: string; actor_id: string | null; comment: string | null; created_at: string }
 interface DNotification { id: string; user_id: string; type: string; title: string; body: string | null; opportunity_id: string | null; read_at: string | null; created_at: string }
 interface DAudit { id: number; occurred_at: string; actor_username: string | null; action: string; outcome: string; entity_type: string | null; entity_id: string | null; opportunity_id: string | null; ip_address: string | null; details: Record<string, unknown> | null }
@@ -164,6 +164,15 @@ function seed(): DB {
 }
 
 let db: DB = load();
+// Single-user portal: Ahmed AlOulah, the Presales Director, is always signed in and owns the work.
+const SOLE_USERNAME = "a.aloulah";
+{
+  const sole = db.users.find((u) => u.username === SOLE_USERNAME);
+  if (sole) {
+    sole.team_id = sole.team_id ?? db.teams.find((t) => t.director_id === sole.id)?.id ?? null;
+    db.session = sole.id;
+  }
+}
 // Documents and review comments arrived with Phase 2; older saved demo data has no such lists.
 for (const key of ["documents", "comments", "decisions", "runs", "findings", "analyses", "tracker", "governance"] as const) if (!db[key]) (db as unknown as Record<string, unknown[]>)[key] = [];
 
@@ -194,7 +203,7 @@ class HttpError extends Error { constructor(public status: number, public detail
 const err = (status: number, detail: unknown) => { throw new HttpError(status, detail); };
 
 const user = (id: string | null) => db.users.find((u) => u.id === id) ?? null;
-const me = () => user(db.session);
+const me = () => user(db.session) ?? db.users.find((u) => u.username === SOLE_USERNAME) ?? null;
 const team = (id: string | null) => db.teams.find((t) => t.id === id) ?? null;
 const ref = (u: DUser | null) => (u ? { id: u.id, username: u.username, full_name: u.full_name } : null);
 const can = (u: DUser, perm: string) => PERMISSIONS[u.role].includes(perm);
@@ -369,7 +378,9 @@ function oppOut(o: DOpp) {
     manager: ref(user(o.manager_id)), director: ref(user(o.director_id)),
     ai_status: aiStatus(o), ai_status_label: AI_STATUS_LABELS[aiStatus(o)],
     current_version: v?.version_number ?? null, ai_readiness: o.ai_readiness,
-    has_critical_findings: o.has_critical_findings, created_at: o.created_at, updated_at: o.updated_at };
+    has_critical_findings: o.has_critical_findings, created_at: o.created_at, updated_at: o.updated_at,
+    // Added by hand (flagged) or managed by the opportunities sheet. The sheet never touches manual ones.
+    source: o.source ?? "manual" };
 }
 function detailOut(u: DUser, o: DOpp) {
   const v = db.versions.find((x) => x.id === o.current_version_id)!;
@@ -377,6 +388,7 @@ function detailOut(u: DUser, o: DOpp) {
     can_create_version: canCreateVersion(u, o),
     can_delete: canDelete(u, o), is_archived: !!o.is_archived,
     can_view_ai: canViewAi(u, o),
+    folder_name: o.folder_name ?? null, folder_signature: o.folder_signature ?? null,
     actions: actionsFor(u, o) };
 }
 function versionOut(v: DVersion, currentId: string) {
@@ -652,6 +664,93 @@ async function storeUpload(u: DUser, o: DOpp, file: File, category: string) {
 
 /* ---------------- routing ---------------- */
 type Handler = (m: RegExpMatchArray, body: any, q: URLSearchParams) => unknown;
+
+/** Creates an opportunity with its first DeepDive version. "sheet" ones are kept in step with the opportunities sheet. */
+function newOpportunity(u: DUser, f: { number: string; title: string; account: string; type?: string | null;
+  vertical?: string | null; value?: string; submissionDate?: string; presalesReceived?: string }, source: "manual" | "sheet") {
+  const t = now();
+  const o: DOpp = { id: uid(), opportunity_number: f.number, title: f.title, account_name: f.account,
+    opportunity_type: f.type ?? null, vertical: f.vertical ?? null, source,
+    status: "draft", owner_id: u.id, team_id: u.team_id, manager_id: team(u.team_id)?.manager_id ?? null,
+    director_id: team(u.team_id)?.director_id ?? null, current_version_id: "", ai_readiness: null,
+    has_critical_findings: false, created_at: t, updated_at: t };
+  const v: DVersion = { id: uid(), opportunity_id: o.id, version_number: 1,
+    change_notes: source === "sheet" ? "Created from the opportunities sheet" : "Initial version", is_locked: false,
+    locked_at: null, submitted_at: null, revision: 0, created_at: t, updated_at: t, created_by: u.id, updated_by: u.id,
+    data: { customer: o.account_name, oppName: o.title, oppNumber: f.number, presalesOwner: u.full_name,
+            accountManager: "", value: f.value ?? "", background: "", submissionDate: f.submissionDate ?? "",
+            presalesReceived: f.presalesReceived ?? "" } };
+  o.current_version_id = v.id;
+  db.opportunities.push(o); db.versions.push(v);
+  db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: v.id, action: "create", from_status: null, to_status: "draft",
+    actor_id: u.id, comment: source === "sheet" ? "Created from the opportunities sheet" : null, created_at: t });
+  audit("opportunity.created", { entity_type: "opportunity", entity_id: o.id, opportunity_id: o.id, details: { number: f.number, source } });
+  audit("version.created", { entity_type: "opportunity_version", entity_id: v.id, opportunity_id: o.id, details: { version: 1 } });
+  return o;
+}
+
+interface SheetRow { number: string; title: string; account: string; type?: string; vertical?: string; value?: string;
+  submission_date?: string; presales_received?: string }
+
+/** Compares the opportunities sheet with the portal. Rows not yet in the portal become active opportunities;
+    sheet-managed opportunities missing from the sheet are archived (and restored if they come back).
+    Opportunities added by hand are flagged "manual" and never changed by the sheet. */
+function sheetPlan(rows: SheetRow[]) {
+  const seen = new Map<string, SheetRow>();
+  const invalid: { row: number; reason: string }[] = [];
+  rows.forEach((r, i) => {
+    const number = String(r.number ?? "").replace(/\s+/g, "").toUpperCase();
+    if (!number) { invalid.push({ row: i + 2, reason: "No opportunity number" }); return; }
+    if (!/^[A-Z0-9][A-Z0-9\-_/]{2,40}$/.test(number)) { invalid.push({ row: i + 2, reason: `Number “${r.number}” is not valid` }); return; }
+    if (!String(r.title ?? "").trim()) { invalid.push({ row: i + 2, reason: `${number}: no opportunity name` }); return; }
+    if (seen.has(number)) { invalid.push({ row: i + 2, reason: `${number} appears more than once` }); return; }
+    seen.set(number, { ...r, number, title: String(r.title).trim(), account: String(r.account ?? "").trim() || "—" });
+  });
+  const byNumber = new Map(db.opportunities.map((o) => [o.opportunity_number, o]));
+  const brief = (o: DOpp | SheetRow) => ("opportunity_number" in o
+    ? { number: o.opportunity_number, title: o.title, account: o.account_name }
+    : { number: o.number, title: o.title, account: o.account });
+  const add = [...seen.values()].filter((r) => !byNumber.has(r.number));
+  const restore = db.opportunities.filter((o) => (o.source ?? "manual") === "sheet" && o.is_archived && seen.has(o.opportunity_number));
+  const archive = db.opportunities.filter((o) => (o.source ?? "manual") === "sheet" && !o.is_archived
+    && o.status !== "completed" && !seen.has(o.opportunity_number));
+  const manual = db.opportunities.filter((o) => (o.source ?? "manual") === "manual" && seen.has(o.opportunity_number));
+  const unchanged = db.opportunities.filter((o) => (o.source ?? "manual") === "sheet" && !o.is_archived && seen.has(o.opportunity_number));
+  return { seen, add, restore, archive, manual, unchanged, invalid,
+    summary: { rows: rows.length, add: add.map(brief), restore: restore.map(brief), archive: archive.map(brief),
+               manual: manual.map(brief), unchanged: unchanged.length, invalid } };
+}
+
+
+/** Records a new DeepDive version holding `data`. The current version is kept as it was (locked). A still-empty
+    first draft (never saved) is filled in place instead, so a fresh opportunity does not start with a blank v1. */
+function recordVersion(u: DUser, o: DOpp, data: Record<string, any>, note: string, action: string) {
+  const current = db.versions.find((x) => x.id === o.current_version_id)!;
+  const t = now();
+  const master = { oppNumber: o.opportunity_number, oppName: o.title, customer: o.account_name };
+  let v: DVersion;
+  if (!current.is_locked && current.revision === 0 && current.version_number === 1) {
+    v = current;
+    v.data = { ...current.data, ...data, ...master };
+    v.change_notes = note; v.revision += 1;
+  } else {
+    if (!current.is_locked) { current.is_locked = true; current.locked_at = t; }
+    v = { id: uid(), opportunity_id: o.id, version_number: Math.max(...versionsOf(o.id).map((x) => x.version_number)) + 1,
+      change_notes: note, is_locked: false, locked_at: null, submitted_at: null, revision: 1, created_at: t, updated_at: t,
+      created_by: u.id, updated_by: u.id, data: { ...data, ...master } };
+    activeDocs(o.id, current.id).forEach((d) => db.documents.push({ ...d, id: uid(), version_id: v.id }));
+    db.versions.push(v); o.current_version_id = v.id;
+  }
+  // Every recorded version is a reference point: it is locked straight away and only ever replaced by a newer one.
+  v.is_locked = true; v.locked_at = t; v.submitted_at = t; v.updated_at = t; v.updated_by = u.id;
+  o.updated_at = t;
+  db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: v.id, action, from_status: o.status, to_status: o.status,
+    actor_id: u.id, comment: `v${v.version_number}: ${note}`, created_at: t });
+  audit("version.created", { entity_type: "opportunity_version", entity_id: v.id, opportunity_id: o.id,
+    details: { version: v.version_number, note } });
+  return v;
+}
+
 const routes: [string, RegExp, Handler][] = [
   ["POST", /^\/auth\/login$/, (_m, body) => {
     const u = db.users.find((x) => x.username.toLowerCase() === String(body.username ?? "").trim().toLowerCase());
@@ -660,7 +759,8 @@ const routes: [string, RegExp, Handler][] = [
     audit("auth.login"); persist();
     return meOut(u!);
   }],
-  ["POST", /^\/auth\/logout$/, () => { audit("auth.logout"); db.session = null; persist(); return null; }],
+  // Single-user portal: there is no one else to sign in as, so signing out keeps the session.
+  ["POST", /^\/auth\/logout$/, () => null],
   ["GET", /^\/auth\/me$/, () => meOut(requireUser())],
   ["POST", /^\/auth\/change-password$/, (_m, body) => {
     const u = requireUser();
@@ -721,25 +821,64 @@ const routes: [string, RegExp, Handler][] = [
     const number = String(body.opportunity_number ?? "").replace(/\s+/g, "").toUpperCase();
     if (!/^[A-Z0-9][A-Z0-9\-_/]{2,40}$/.test(number)) err(422, { message: "Opportunity number format is not valid (e.g. OP-2026-159388)." });
     if (db.opportunities.some((o) => o.opportunity_number === number)) err(409, { message: `Opportunity ${number} already exists.`, code: "duplicate_number" });
-    const t = now();
-    const o: DOpp = { id: uid(), opportunity_number: number, title: String(body.title).trim(), account_name: String(body.account_name).trim(),
-      opportunity_type: body.opportunity_type ?? null, vertical: body.vertical ?? null,
-      status: "draft", owner_id: u.id, team_id: u.team_id, manager_id: team(u.team_id)?.manager_id ?? null,
-      director_id: team(u.team_id)?.director_id ?? null, current_version_id: "", ai_readiness: null,
-      has_critical_findings: false, created_at: t, updated_at: t };
-    const v: DVersion = { id: uid(), opportunity_id: o.id, version_number: 1, change_notes: "Initial version", is_locked: false,
-      locked_at: null, submitted_at: null, revision: 0, created_at: t, updated_at: t, created_by: u.id, updated_by: u.id,
-      data: { customer: o.account_name, oppName: o.title, oppNumber: number, presalesOwner: u.full_name,
-              accountManager: "", value: "", background: "" } };
-    o.current_version_id = v.id;
-    db.opportunities.push(o); db.versions.push(v);
-    db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: v.id, action: "create", from_status: null, to_status: "draft", actor_id: u.id, comment: null, created_at: t });
-    audit("opportunity.created", { entity_type: "opportunity", entity_id: o.id, opportunity_id: o.id, details: { number } });
-    audit("version.created", { entity_type: "opportunity_version", entity_id: v.id, opportunity_id: o.id, details: { version: 1 } });
+    const o = newOpportunity(u, { number, title: String(body.title).trim(), account: String(body.account_name).trim(),
+      type: body.opportunity_type ?? null, vertical: body.vertical ?? null }, "manual");
     persist();
     return detailOut(u, o);
   }],
+  ["POST", /^\/opportunities\/import-sheet$/, (_m, body) => {
+    const u = requirePerm("opportunity.create");
+    const rows = Array.isArray(body?.rows) ? (body.rows as SheetRow[]) : [];
+    if (!rows.length) err(422, { message: "The sheet has no opportunity rows." });
+    const plan = sheetPlan(rows);
+    if (!body.apply) return plan.summary;
+    const t = now();
+    plan.add.forEach((r) => newOpportunity(u, { number: r.number, title: r.title, account: r.account, type: r.type || null,
+      vertical: r.vertical || null, value: r.value, submissionDate: r.submission_date, presalesReceived: r.presales_received }, "sheet"));
+    plan.archive.forEach((o) => {
+      o.is_archived = true; o.updated_at = t;
+      db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: o.current_version_id, action: "archived", from_status: o.status,
+        to_status: o.status, actor_id: u.id, comment: "Archived: no longer in the opportunities sheet", created_at: t });
+    });
+    plan.restore.forEach((o) => {
+      o.is_archived = false; o.updated_at = t;
+      db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: o.current_version_id, action: "restored", from_status: o.status,
+        to_status: o.status, actor_id: u.id, comment: "Restored: back in the opportunities sheet", created_at: t });
+    });
+    audit("opportunities.sheet_imported", { details: { added: plan.add.length, archived: plan.archive.length,
+      restored: plan.restore.length, skipped_manual: plan.manual.length, invalid: plan.invalid.length } });
+    persist();
+    return { ...plan.summary, applied: true };
+  }],
   ["GET", /^\/opportunities\/([^/]+)$/, (m) => { const u = requireUser(); return detailOut(u, getOpp(u, m[1])); }],
+  // ---------------------------------------------------------------- shared folder
+  ["POST", /^\/opportunities\/([^/]+)\/folder$/, (m, body) => {
+    const u = requireUser(); const o = getOpp(u, m[1]);
+    o.folder_name = body?.name ? String(body.name) : null;
+    if (!o.folder_name) o.folder_signature = null;
+    audit("opportunity.folder_linked", { entity_type: "opportunity", entity_id: o.id, opportunity_id: o.id, details: { folder: o.folder_name } });
+    persist();
+    return { folder_name: o.folder_name };
+  }],
+  ["POST", /^\/opportunities\/([^/]+)\/folder-import$/, (m, body) => {
+    const u = requireUser(); const o = getOpp(u, m[1]);
+    const signature = String(body?.signature ?? "");
+    if (signature && signature === o.folder_signature) return { changed: false };
+    const current = db.versions.find((x) => x.id === o.current_version_id)!;
+    const data: Record<string, any> = body?.data && typeof body.data === "object" ? clone(body.data) : clone(current.data);
+    if (Array.isArray(body?.groups)) data.groups = body.groups;
+    const files = [body?.files?.deepdive, body?.files?.checklist].filter(Boolean).join(" + ");
+    const v = recordVersion(u, o, data, `From the shared folder: ${files || "folder files"}`, "folder_import");
+    o.folder_signature = signature || null;
+    // A new DeepDive from the Presales Lead goes back to review (and a new DeepDive session) before AI analysis.
+    if (o.status !== "completed" && o.status !== "submitted") {
+      const from = o.status; o.status = "submitted";
+      db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: v.id, action: "submit", from_status: from,
+        to_status: "submitted", actor_id: u.id, comment: "New DeepDive from the shared folder", created_at: now() });
+    }
+    persist();
+    return { changed: true, version_number: v.version_number, version_id: v.id };
+  }],
   ["GET", /^\/opportunities\/([^/]+)\/versions$/, (m) => {
     const u = requireUser(); const o = getOpp(u, m[1]);
     return versionsOf(o.id).map((v) => versionOut(v, o.current_version_id));
@@ -964,9 +1103,20 @@ const routes: [string, RegExp, Handler][] = [
       details: { kind, title } });
     notify([o.owner_id], "governance.added", `${kind === "risk" ? "Risk" : "Support needed"} raised: ${o.title}`,
       `${item.created_by} (${item.created_by_role}): ${title}`, o.id);
-    applyGovernance(o);        // an open working version receives it straight away
+    // Every item becomes part of the DeepDive at once, as a new version (the DeepDive stays the single reference).
+    const current = db.versions.find((x) => x.id === o.current_version_id)!;
+    const data: Record<string, any> = clone(current.data);
+    const entry = kind === "risk"
+      ? { risk: item.title, mitigation: item.detail || "To be defined with the owner", owner: item.owner, date: item.due_date ?? "",
+          impact: item.impact, source: `Review & Governance — ${item.created_by_role}` }
+      : { need: item.title, from: item.owner, priority: item.impact, date: item.due_date ?? "",
+          source: `Review & Governance — ${item.created_by_role}` };
+    if (kind === "risk") data.riskTech = [...(data.riskTech ?? []), entry];
+    else data.support = [...(data.support ?? []), entry];
+    const v = recordVersion(u, o, data, `${kind === "risk" ? "Risk" : "Support need"} added: ${item.title}`, "governance");
+    item.applied_to_version = v.version_number;
     persist();
-    return item;
+    return { ...item, version_number: v.version_number, data: v.data, opportunity_number: o.opportunity_number };
   }],
 
   ["POST", /^\/opportunities\/([^/]+)\/governance\/([^/]+)\/status$/, (m, body) => {
