@@ -5,17 +5,23 @@ import JSZip from "jszip";
 export interface OpportunityRow {
   number: string; title: string; account: string; type?: string; vertical?: string; value?: string;
   submission_date?: string; presales_received?: string;
+  presales_lead?: string; account_manager?: string; sow?: string;
 }
 
 const COLUMNS: [keyof OpportunityRow, string[]][] = [
   ["number", ["opportunity number", "opportunity no", "opportunity id", "opp number", "opp no", "op number", "number", "opportunity #"]],
   ["title", ["opportunity name", "opportunity title", "opportunity", "name", "title", "project name"]],
   ["account", ["account", "account name", "customer", "customer name", "client"]],
-  ["type", ["type", "opportunity type", "rfx type"]],
+  // "Opportunity Record Type" (RFP / RFQ / RFI) wins over a generic "Type" column (e.g. "Sell Direct").
+  ["type", ["opportunity record type", "record type", "opportunity type", "rfx type", "type"]],
   ["vertical", ["vertical", "sector", "industry"]],
-  ["value", ["estimated value", "estimated solution value", "value", "amount", "deal value", "estimated value sar"]],
+  ["value", ["estimated solution value sar", "estimated solution value", "estimated value sar", "estimated value",
+             "total contract value tcv", "total contract value", "value", "amount", "deal value"]],
   ["submission_date", ["submission date", "customer submission date", "due date", "closing date", "close date"]],
-  ["presales_received", ["presales received", "presales received date", "received date", "received"]],
+  ["presales_received", ["presales received date", "presales received", "received date", "received"]],
+  ["presales_lead", ["presales lead", "presales owner", "presales engineer"]],
+  ["account_manager", ["opportunity owner am", "account manager", "am", "opportunity owner"]],
+  ["sow", ["presales sow", "scope of work", "sow"]],
 ];
 export const REQUIRED_HEADERS = ["Opportunity Number", "Opportunity Name", "Account"];
 
@@ -35,6 +41,10 @@ function asDate(v: string): string {
   return t;
 }
 
+/* Excel files from some systems (e.g. a Dynamics CRM export) prefix every tag ("x:row", "x:c"), so elements are
+   looked up by local name whatever the prefix. */
+const tags = (el: Document | Element, name: string) => [...el.getElementsByTagNameNS("*", name)];
+
 async function xlsxGrid(file: Blob): Promise<string[][]> {
   const zip = await JSZip.loadAsync(file);
   const xml = async (p: string) => {
@@ -44,27 +54,28 @@ async function xlsxGrid(file: Blob): Promise<string[][]> {
   const wb = await xml("xl/workbook.xml");
   if (!wb) throw new Error("This file is not an Excel workbook.");
   const rels = await xml("xl/_rels/workbook.xml.rels");
-  const first = wb.getElementsByTagName("sheet")[0];
+  // The first visible sheet (exports often add hidden helper sheets).
+  const sheets = tags(wb, "sheet");
+  const first = sheets.find((sh) => !["hidden", "veryHidden"].includes(sh.getAttribute("state") ?? "")) ?? sheets[0];
   const rid = first?.getAttribute("r:id")
     ?? first?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
-  const rel = rels ? [...rels.getElementsByTagName("Relationship")].find((r) => r.getAttribute("Id") === rid) : null;
+  const rel = rels ? tags(rels, "Relationship").find((r) => r.getAttribute("Id") === rid) : null;
   let path = (rel?.getAttribute("Target") ?? "worksheets/sheet1.xml").replace(/^\//, "");
   if (!path.startsWith("xl/")) path = `xl/${path}`;
   const sst = await xml("xl/sharedStrings.xml");
-  const shared = sst ? [...sst.getElementsByTagName("si")].map((si) =>
-    [...si.getElementsByTagName("t")].map((t) => t.textContent ?? "").join("")) : [];
+  const shared = sst ? tags(sst, "si").map((si) => tags(si, "t").map((t) => t.textContent ?? "").join("")) : [];
   const ws = await xml(path);
   if (!ws) throw new Error("The workbook has no readable sheet.");
-  return [...ws.getElementsByTagName("row")].map((row) => {
+  return tags(ws, "row").map((row) => {
     const out: string[] = [];
-    [...row.getElementsByTagName("c")].forEach((c) => {
+    tags(row, "c").forEach((c) => {
       const letters = (c.getAttribute("r") ?? "").replace(/[0-9]/g, "");
       let idx = 0;
       for (const ch of letters) idx = idx * 26 + (ch.charCodeAt(0) - 64);
       const type = c.getAttribute("t");
-      const v = c.getElementsByTagName("v")[0]?.textContent ?? "";
+      const v = tags(c, "v")[0]?.textContent ?? "";
       const text = type === "s" ? shared[Number(v)] ?? ""
-        : type === "inlineStr" ? [...c.getElementsByTagName("t")].map((t) => t.textContent ?? "").join("") : v;
+        : type === "inlineStr" ? tags(c, "t").map((t) => t.textContent ?? "").join("") : v;
       out[idx > 0 ? idx - 1 : out.length] = text.trim();
     });
     return out;
@@ -92,13 +103,25 @@ function csvGrid(text: string): string[][] {
 /** Returns the rows, plus the headers that were recognised, so the preview can show what was read. */
 export async function readOpportunitySheet(file: File): Promise<{ rows: OpportunityRow[]; matched: string[] }> {
   const grid = /\.csv$/i.test(file.name) ? csvGrid(await file.text()) : await xlsxGrid(file);
+  // A Readiness checklist from DeepDive Builder belongs in the opportunity's shared folder, not here.
+  const looksLikeChecklist = grid.slice(0, 5).some((r) => {
+    const cells = r.map((c) => norm(c ?? ""));
+    return cells.includes("component") && (cells.includes("quote received") || cells.includes("tp received"));
+  });
+  if (looksLikeChecklist) {
+    throw new Error("This is a Readiness checklist from DeepDive Builder, not the opportunities sheet. Put it in the "
+      + "opportunity’s shared folder instead: open the opportunity → DeepDive tab → Connect folder. "
+      + "Import sheet expects the list of all opportunities, one row each.");
+  }
   const headerAt = grid.findIndex((r) => r.some((c) => COLUMNS[0][1].includes(norm(c ?? ""))));
   if (headerAt < 0) throw new Error(`No “Opportunity Number” column was found. The sheet needs: ${REQUIRED_HEADERS.join(", ")}.`);
   const header = grid[headerAt].map((h) => norm(h ?? ""));
   const col = new Map<keyof OpportunityRow, number>();
   COLUMNS.forEach(([key, names]) => {
-    const i = header.findIndex((h) => names.includes(h));
-    if (i >= 0) col.set(key, i);
+    for (const name of names) {               // names are in order of preference
+      const i = header.indexOf(name);
+      if (i >= 0) { col.set(key, i); break; }
+    }
   });
   if (!col.has("title")) throw new Error("No “Opportunity Name” column was found.");
   const rows = grid.slice(headerAt + 1)
@@ -109,6 +132,7 @@ export async function readOpportunitySheet(file: File): Promise<{ rows: Opportun
         number: get("number"), title: get("title"), account: get("account"), type: get("type"), vertical: get("vertical"),
         value: get("value").replace(/[^0-9.]/g, ""), submission_date: asDate(get("submission_date")),
         presales_received: asDate(get("presales_received")),
+        presales_lead: get("presales_lead"), account_manager: get("account_manager"), sow: get("sow"),
       };
     });
   return { rows, matched: [...col.keys()] };

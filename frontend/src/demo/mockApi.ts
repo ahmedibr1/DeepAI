@@ -667,7 +667,8 @@ type Handler = (m: RegExpMatchArray, body: any, q: URLSearchParams) => unknown;
 
 /** Creates an opportunity with its first DeepDive version. "sheet" ones are kept in step with the opportunities sheet. */
 function newOpportunity(u: DUser, f: { number: string; title: string; account: string; type?: string | null;
-  vertical?: string | null; value?: string; submissionDate?: string; presalesReceived?: string }, source: "manual" | "sheet") {
+  vertical?: string | null; value?: string; submissionDate?: string; presalesReceived?: string; presalesLead?: string;
+  accountManager?: string; sow?: string }, source: "manual" | "sheet") {
   const t = now();
   const o: DOpp = { id: uid(), opportunity_number: f.number, title: f.title, account_name: f.account,
     opportunity_type: f.type ?? null, vertical: f.vertical ?? null, source,
@@ -677,9 +678,9 @@ function newOpportunity(u: DUser, f: { number: string; title: string; account: s
   const v: DVersion = { id: uid(), opportunity_id: o.id, version_number: 1,
     change_notes: source === "sheet" ? "Created from the opportunities sheet" : "Initial version", is_locked: false,
     locked_at: null, submitted_at: null, revision: 0, created_at: t, updated_at: t, created_by: u.id, updated_by: u.id,
-    data: { customer: o.account_name, oppName: o.title, oppNumber: f.number, presalesOwner: u.full_name,
-            accountManager: "", value: f.value ?? "", background: "", submissionDate: f.submissionDate ?? "",
-            presalesReceived: f.presalesReceived ?? "" } };
+    data: { customer: o.account_name, oppName: o.title, oppNumber: f.number, presalesOwner: f.presalesLead || u.full_name,
+            accountManager: f.accountManager ?? "", value: f.value ?? "", background: "", sow: f.sow ?? "",
+            submissionDate: f.submissionDate ?? "", presalesReceived: f.presalesReceived ?? "" } };
   o.current_version_id = v.id;
   db.opportunities.push(o); db.versions.push(v);
   db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: v.id, action: "create", from_status: null, to_status: "draft",
@@ -690,7 +691,7 @@ function newOpportunity(u: DUser, f: { number: string; title: string; account: s
 }
 
 interface SheetRow { number: string; title: string; account: string; type?: string; vertical?: string; value?: string;
-  submission_date?: string; presales_received?: string }
+  submission_date?: string; presales_received?: string; presales_lead?: string; account_manager?: string; sow?: string }
 
 /** Compares the opportunities sheet with the portal. Rows not yet in the portal become active opportunities;
     sheet-managed opportunities missing from the sheet are archived (and restored if they come back).
@@ -834,7 +835,8 @@ const routes: [string, RegExp, Handler][] = [
     if (!body.apply) return plan.summary;
     const t = now();
     plan.add.forEach((r) => newOpportunity(u, { number: r.number, title: r.title, account: r.account, type: r.type || null,
-      vertical: r.vertical || null, value: r.value, submissionDate: r.submission_date, presalesReceived: r.presales_received }, "sheet"));
+      vertical: r.vertical || null, value: r.value, submissionDate: r.submission_date, presalesReceived: r.presales_received,
+      presalesLead: r.presales_lead, accountManager: r.account_manager, sow: r.sow }, "sheet"));
     plan.archive.forEach((o) => {
       o.is_archived = true; o.updated_at = t;
       db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: o.current_version_id, action: "archived", from_status: o.status,
