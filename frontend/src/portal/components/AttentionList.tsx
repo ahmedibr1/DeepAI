@@ -273,6 +273,9 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                               {row.criteria.strategic && <span title="Flagged strategic opportunity">⚑ Strategic</span>}
                             </span>
                           )}
+                          <Link className="slides-link" to={`/opportunities/${row.id}/slides`} title="View the DeepDive slides">
+                            ▶ Slides
+                          </Link>
 
                         </td>
                         <td className="wrap" dir="auto">{row.account_name}</td>
@@ -314,7 +317,7 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                             aria-expanded={menuFor === row.id} aria-label={`Actions for ${row.title}`}
                             onClick={(e) => {
                               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                              const height = 100;          // two items; flip upwards near the bottom of the screen
+                              const height = 140;          // three items; flip upwards near the bottom of the screen
                               const below = r.bottom + 6;
                               setMenuAt({
                                 top: below + height > window.innerHeight ? Math.max(12, r.top - height) : below,
@@ -335,6 +338,10 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                                 <button type="button" role="menuitem"
                                   onClick={() => { setMenuFor(null); navigate(`/opportunities/${row.id}/deepdive`); }}>
                                   Go to Latest DeepDive
+                                </button>
+                                <button type="button" role="menuitem"
+                                  onClick={() => { setMenuFor(null); navigate(`/opportunities/${row.id}/slides`); }}>
+                                  View Slides
                                 </button>
                                 <button type="button" role="menuitem"
                                   onClick={() => { setMenuFor(null); setError(null); setArchiving(row); }}>
