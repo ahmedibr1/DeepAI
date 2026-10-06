@@ -43,7 +43,7 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
         <div>
           <div className="mb-kicker">DeepAI · Presales</div>
           <h1>Opportunity Attention Monitor</h1>
-          <p>Active opportunities meeting the entry criteria: ≥ SAR 20M value, previous delivered projects, or flagged strategic.</p>
+          <p>Strategic and High: opportunities meeting the entry criteria (≥ SAR 20M value, previous delivered projects, or flagged strategic). Medium: active opportunities below SAR 20M.</p>
         </div>
         <div className="mb-date">{today.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</div>
       </header>
@@ -75,7 +75,7 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
                 const i = ordered.indexOf(r);
                 const d = days(r);
                 return (
-                  <tr key={r.id}>
+                  <tr key={r.id} className={g.tier === "medium" ? "mb-compact" : undefined}>
                     <td className="mb-n">{i + 1}</td>
                     <td>
                       <div className="mb-num">{r.opportunity_number}

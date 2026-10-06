@@ -413,7 +413,7 @@ function entryCriteria(o: DOpp) {
 function monitorRows(u: DUser) {
   const today = new Date().toISOString().slice(0, 10);
   return visible(u)
-    .filter((o) => !o.is_archived && o.status !== "completed" && entryCriteria(o).qualifies)
+    .filter((o) => !o.is_archived && o.status !== "completed")
     .map((o) => {
       const version = db.versions.find((v) => v.id === o.current_version_id);
       const data: Record<string, any> = version?.data ?? {};
@@ -445,6 +445,8 @@ function monitorRows(u: DUser) {
         risks: [...risks].sort((a, b) => (a.due_date ?? FAR_FUTURE).localeCompare(b.due_date ?? FAR_FUTURE)),
       };
     })
+    // Opportunities meeting the entry criteria, plus the Medium tier (a value below SAR 20M), listed under them.
+    .filter((r) => r.criteria.qualifies || (r.estimated_value > 0 && r.estimated_value < ENTRY_MIN_VALUE))
     .sort((a, b) => (a.submission_date ?? FAR_FUTURE).localeCompare(b.submission_date ?? FAR_FUTURE)
       || b.attention_count - a.attention_count || a.title.localeCompare(b.title));
 }
@@ -1475,7 +1477,7 @@ const routes: [string, RegExp, Handler][] = [
         filter: { attention: "1" }, tone: "red" });
 
       const crit = activeAll.map(entryCriteria);
-      const entry = { min_value: ENTRY_MIN_VALUE, active: activeAll.length, qualifying: monitor.length,
+      const entry = { min_value: ENTRY_MIN_VALUE, active: activeAll.length, qualifying: monitor.filter((r) => r.criteria.qualifies).length,
         value: crit.filter((c) => c.value).length, previous_projects: crit.filter((c) => c.previous_projects).length,
         strategic: crit.filter((c) => c.strategic).length };
       return { role: u.role, kind: "management", unread_notifications: unread, attention, monitor, cards, entry,
