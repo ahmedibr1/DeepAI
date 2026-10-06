@@ -74,6 +74,10 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
                   </div>
                   <div className="mb-title" dir="auto">{r.title}</div>
                   <div className="mb-acc" dir="auto">{r.account_name}</div>
+                  <div className="mb-facts">
+                    <span><b>PS</b> {r.ps_duration ?? "—"}</span><span><b>MS</b> {r.ms_duration ?? "—"}</span>
+                    <span><b>Competition</b> <bdi>{r.competitors.length ? r.competitors.join(", ") : "—"}</bdi></span>
+                  </div>
                 </td>
                 <td className="r mb-val">{r.estimated_value ? nf.format(r.estimated_value) : "—"}</td>
                 <td>

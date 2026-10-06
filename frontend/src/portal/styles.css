@@ -955,3 +955,10 @@ table.checklist td.small{white-space:normal;min-width:160px}
 .scope-items li{font-size:13px;line-height:1.5;padding-inline-start:12px;position:relative}
 .scope-items li::before{content:"";position:absolute;inset-inline-start:0;top:.65em;width:5px;height:5px;border-radius:50%;background:#FF375E}
 .scope-names{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.dur-chip{display:inline-flex;gap:6px;align-items:center;padding:4px 12px;border-radius:999px;background:var(--purple);color:#fff;font-size:12.5px}
+.dur-chip b{color:#FFB3C2;font-size:11px;letter-spacing:.04em}
+.dur-chip.none{background:#F1EEF4;color:var(--muted)}
+.dur-chip.none b{color:var(--muted)}
+.soft-chip.comp{background:#FFE7EC;color:#B0102F;border-color:#FFC9D4}
+.mb-facts{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:3px;font-size:8pt;color:#1B171F}
+.mb-facts b{color:#4F008C;font-size:7pt;text-transform:uppercase;letter-spacing:.04em}

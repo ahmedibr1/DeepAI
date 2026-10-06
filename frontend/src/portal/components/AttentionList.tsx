@@ -146,6 +146,16 @@ function ExpandedRow({ row }: { row: MonitorRow }) {
               {row.vendors.length ? row.vendors.map((name) => <span className="soft-chip" key={name}>{name}</span>)
                 : <span className="muted small">—</span>}
             </div>
+            <div className="chip-row">
+              <span className="chip-label"><Icon name="calendar" /> Duration:</span>
+              <span className={`dur-chip${row.ps_duration ? "" : " none"}`}><b>PS</b> {row.ps_duration ?? "—"}</span>
+              <span className={`dur-chip${row.ms_duration ? "" : " none"}`}><b>MS</b> {row.ms_duration ?? "—"}</span>
+            </div>
+            <div className="chip-row">
+              <span className="chip-label"><Icon name="target" /> Competition:</span>
+              {row.competitors.length ? row.competitors.map((name) => <span className="soft-chip comp" key={name} dir="auto">{name}</span>)
+                : <span className="muted small">—</span>}
+            </div>
           </section>
 
           <section className="detail-card">

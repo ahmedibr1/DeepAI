@@ -386,6 +386,12 @@ const scopeLines = (text: string, maxLines = 30) => {
   const lines = String(text ?? "").split(/\r?\n/).map((l) => l.replace(/[ \t]+/g, " ").trim()).filter(Boolean);
   return lines.slice(0, maxLines).join("\n") + (lines.length > maxLines ? "\n…" : "");
 };
+/** "36 months" → "36 Months"; empty, "0" and "N/A" mean there is no such phase. */
+const duration = (v: unknown): string | null => {
+  const t = String(v ?? "").replace(/\s+/g, " ").trim();
+  if (!t || /^(0|n\/?a|none|-+|—)$/i.test(t)) return null;
+  return t.replace(/\b(months?|years?|weeks?|days?)\b/gi, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+};
 const names = (items: any[], ...fields: string[]) => (items ?? [])
   .map((i) => fields.map((f) => String(i?.[f] ?? "").trim()).find(Boolean)).filter(Boolean) as string[];
 
@@ -432,6 +438,8 @@ function monitorRows(u: DUser) {
         nearest_due_date: nearest, is_overdue: !!nearest && nearest < today,
         days_since_update: Math.max(dayDiff(o.updated_at.slice(0, 10), today), 0),
         scope: scopeLines(data.sow ?? ""), internal: names(data.internal, "unit"), vendors: names(data.vendors, "name"),
+        ps_duration: duration(data.psDuration), ms_duration: duration(data.msDuration),
+        competitors: names(data.competitors, "name"),
         criteria: entryCriteria(o),
         support: [...support].sort((a, b) => (a.due_date ?? FAR_FUTURE).localeCompare(b.due_date ?? FAR_FUTURE)),
         risks: [...risks].sort((a, b) => (a.due_date ?? FAR_FUTURE).localeCompare(b.due_date ?? FAR_FUTURE)),
