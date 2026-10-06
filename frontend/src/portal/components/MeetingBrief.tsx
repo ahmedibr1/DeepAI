@@ -3,7 +3,8 @@
 import { createPortal } from "react-dom";
 import type { MonitorRow } from "../api/types";
 import { fmtDate } from "../lib/format";
-import { TIER_LABELS, tierOf } from "../lib/tier";
+import { Fragment } from "react";
+import { TIER_LABELS, groupByTier, tierOf } from "../lib/tier";
 
 const nf = new Intl.NumberFormat("en-US");
 const MAX_ITEMS = 2;              // per opportunity, so the brief stays on one page
@@ -28,6 +29,8 @@ function Items({ items, empty }: { items: { text: string; meta: string }[]; empt
 }
 
 export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
+  const groups = groupByTier(rows);
+  const ordered = groups.flatMap((g) => g.rows);
   const total = rows.reduce((s, r) => s + (r.estimated_value || 0), 0);
   const late = rows.filter((r) => r.is_overdue_submission).length;
   const attention = rows.reduce((s, r) => s + r.attention_count, 0);
@@ -62,39 +65,48 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
             <th>Presales Lead</th><th>High risks</th><th>Support needed</th></tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
-            const d = days(r);
-            return (
-              <tr key={r.id}>
-                <td className="mb-n">{i + 1}</td>
-                <td>
-                  <div className="mb-num">{r.opportunity_number}
-                    {r.criteria && <span className="mb-crit">
-                      {r.criteria.value && <i>20M+</i>}{r.criteria.previous_projects && <i>Prev. projects</i>}{r.criteria.strategic && <i>Strategic</i>}
-                    </span>}
-                  </div>
-                  <div className="mb-title" dir="auto">{r.title}</div>
-                  <div className="mb-acc" dir="auto">{r.account_name}</div>
-                  <div className="mb-facts">
-                    <span><b>PS</b> {r.ps_duration ?? "—"}</span><span><b>MS</b> {r.ms_duration ?? "—"}</span>
-                    <span><b>Competition</b> <bdi>{r.competitors.length ? r.competitors.join(", ") : "—"}</bdi></span>
-                  </div>
-                </td>
-                <td className="r mb-val">{r.estimated_value ? nf.format(r.estimated_value) : "—"}
-                  {tierOf(r.estimated_value) && <div><span className={`tier-chip tier-${tierOf(r.estimated_value)}`}>{TIER_LABELS[tierOf(r.estimated_value)!]}</span></div>}
-                </td>
-                <td>
-                  <div className="mb-sub">{r.submission_date ? fmtDate(r.submission_date) : "—"}</div>
-                  {d && <span className={`mb-days ${d.tone}`}>{d.text}</span>}
-                </td>
-                <td dir="auto">{r.owner ?? "—"}</td>
-                <td><Items empty="None recorded"
-                  items={r.risks.map((x) => ({ text: x.risk, meta: meta(x.owner, x.due_date) }))} /></td>
-                <td><Items empty="None recorded"
-                  items={r.support.map((x) => ({ text: x.need, meta: meta(x.from, x.due_date) }))} /></td>
-              </tr>
-            );
-          })}
+          {groups.map((g) => (
+            <Fragment key={g.tier}>
+              <tr className={`mb-group tier-${g.tier}`}><td colSpan={7}>
+                <span className="tier-chip">{g.label}</span> {g.rows.length} opportunit{g.rows.length === 1 ? "y" : "ies"}
+                {" · "}SAR {nf.format(g.rows.reduce((t, r) => t + (r.estimated_value || 0), 0))}{g.range && ` · value ${g.range}`}
+              </td></tr>
+              {g.rows.map((r) => {
+                const i = ordered.indexOf(r);
+                const d = days(r);
+                return (
+                  <tr key={r.id}>
+                    <td className="mb-n">{i + 1}</td>
+                    <td>
+                      <div className="mb-num">{r.opportunity_number}
+                        {r.criteria && <span className="mb-crit">
+                          {r.criteria.value && <i>20M+</i>}{r.criteria.previous_projects && <i>Prev. projects</i>}{r.criteria.strategic && <i>Strategic</i>}
+                        </span>}
+                      </div>
+                      <div className="mb-title" dir="auto">{r.title}</div>
+                      <div className="mb-acc" dir="auto">{r.account_name}</div>
+                      <div className="mb-facts">
+                        <span><b>PS</b> {r.ps_duration ?? "—"}</span><span><b>MS</b> {r.ms_duration ?? "—"}</span>
+                        <span><b>Competition</b> <bdi>{r.competitors.length ? r.competitors.join(", ") : "—"}</bdi></span>
+                      </div>
+                    </td>
+                    <td className="r mb-val">{r.estimated_value ? nf.format(r.estimated_value) : "—"}
+                      {tierOf(r.estimated_value) && <div><span className={`tier-chip tier-${tierOf(r.estimated_value)}`}>{TIER_LABELS[tierOf(r.estimated_value)!]}</span></div>}
+                    </td>
+                    <td>
+                      <div className="mb-sub">{r.submission_date ? fmtDate(r.submission_date) : "—"}</div>
+                      {d && <span className={`mb-days ${d.tone}`}>{d.text}</span>}
+                    </td>
+                    <td dir="auto">{r.owner ?? "—"}</td>
+                    <td><Items empty="None recorded"
+                      items={r.risks.map((x) => ({ text: x.risk, meta: meta(x.owner, x.due_date) }))} /></td>
+                    <td><Items empty="None recorded"
+                      items={r.support.map((x) => ({ text: x.need, meta: meta(x.from, x.due_date) }))} /></td>
+                  </tr>
+                );
+              })}
+            </Fragment>
+          ))}
         </tbody>
       </table>
       <footer className="mb-foot">

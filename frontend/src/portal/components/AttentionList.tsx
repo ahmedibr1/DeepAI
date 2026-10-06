@@ -12,7 +12,7 @@ import { fmtDate } from "../lib/format";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 import { Icon } from "./Icon";
 import { MeetingBrief } from "./MeetingBrief";
-import { TIER_LABELS, tierOf } from "../lib/tier";
+import { TIER_LABELS, groupByTier, tierOf } from "../lib/tier";
 
 const nf = new Intl.NumberFormat("en-US");
 // Every qualifying opportunity on one page: the entry criteria already keep the list short.
@@ -225,6 +225,8 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pages);
   const visible = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const groups = groupByTier(visible);
+  const ordered = groups.flatMap((g) => g.rows);
 
   const archive = async () => {
     if (!archiving) return;
@@ -288,6 +290,14 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
 
       {filtered.length === 0 ? <Empty title="No active opportunities" /> : (
         <>
+          {groups.map((g) => (
+          <section key={g.tier} className={`tier-group tier-${g.tier}`} aria-label={`${g.label} opportunities`}>
+            <header className="tier-group-head">
+              <span className="tier-chip">{g.label}</span>
+              <b>{g.rows.length} opportunit{g.rows.length === 1 ? "y" : "ies"}</b>
+              <span className="muted small">SAR {nf.format(g.rows.reduce((t, r) => t + (r.estimated_value || 0), 0))}</span>
+              {g.range && <span className="muted small">· value {g.range}</span>}
+            </header>
           <div className="table-wrap">
             <table className="data monitor-table">
               <thead>
@@ -309,7 +319,7 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row, index) => {
+                {g.rows.map((row) => {
                   const expanded = open.has(row.id);
                   const tone = submissionTone(row);
                   return (
@@ -320,7 +330,7 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                             aria-label={`${expanded ? "Collapse" : "Expand"} ${row.title}`} onClick={() => toggle(row.id)}>
                             <Icon name={expanded ? "chevronDown" : "chevronRight"} />
                           </button>
-                          <span className="muted">{(current - 1) * PAGE_SIZE + index + 1}</span>
+                          <span className="muted">{ordered.indexOf(row) + 1}</span>
                         </div></td>
                         <td className="num">
                           <Link className="op-link" to={`/opportunities/${row.id}`}>{row.opportunity_number}</Link>
@@ -422,6 +432,8 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
               </tbody>
             </table>
           </div>
+          </section>
+          ))}
 
           {archiving && (
             <Modal title="Archive Opportunity?" onClose={() => setArchiving(null)} footer={<>
