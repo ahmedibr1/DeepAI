@@ -7,6 +7,7 @@ import { OpportunityTable } from "../components/OpportunityTable";
 import { Icon } from "../components/Icon";
 import { Empty, ErrorAlert, PageHeader } from "../components/ui";
 import { fmtDate } from "../lib/format";
+import { TIER_LABELS, TIER_RULES } from "../lib/tier";
 import { useAsync } from "../lib/useAsync";
 
 /** Money cards are shown compactly so the card keeps one line. */
@@ -44,6 +45,15 @@ function Legends() {
           <li><span className="legend-dot dot-orange" />4 – 7 days</li>
           <li><span className="legend-dot dot-yellow" />8 – 12 days</li>
           <li><span className="legend-dot dot-green" />&gt; 12 days</li>
+        </ul>
+      </div>
+      <div className="legend">
+        <h4>Opportunity Tier</h4>
+        <ul>
+          {TIER_RULES.map((t) => (
+            <li key={t.tier} title={t.range}><span className={`legend-dot tier-dot-${t.tier}`} />{TIER_LABELS[t.tier]}
+              <span className="tier-range">{t.range}</span></li>
+          ))}
         </ul>
       </div>
       <div className="legend">

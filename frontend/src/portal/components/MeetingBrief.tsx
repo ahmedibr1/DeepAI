@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import type { MonitorRow } from "../api/types";
 import { fmtDate } from "../lib/format";
+import { TIER_LABELS, tierOf } from "../lib/tier";
 
 const nf = new Intl.NumberFormat("en-US");
 const MAX_ITEMS = 2;              // per opportunity, so the brief stays on one page
@@ -79,7 +80,9 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
                     <span><b>Competition</b> <bdi>{r.competitors.length ? r.competitors.join(", ") : "—"}</bdi></span>
                   </div>
                 </td>
-                <td className="r mb-val">{r.estimated_value ? nf.format(r.estimated_value) : "—"}</td>
+                <td className="r mb-val">{r.estimated_value ? nf.format(r.estimated_value) : "—"}
+                  {tierOf(r.estimated_value) && <div><span className={`tier-chip tier-${tierOf(r.estimated_value)}`}>{TIER_LABELS[tierOf(r.estimated_value)!]}</span></div>}
+                </td>
                 <td>
                   <div className="mb-sub">{r.submission_date ? fmtDate(r.submission_date) : "—"}</div>
                   {d && <span className={`mb-days ${d.tone}`}>{d.text}</span>}

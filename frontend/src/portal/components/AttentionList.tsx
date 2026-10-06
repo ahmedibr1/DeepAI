@@ -12,6 +12,7 @@ import { fmtDate } from "../lib/format";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 import { Icon } from "./Icon";
 import { MeetingBrief } from "./MeetingBrief";
+import { TIER_LABELS, tierOf } from "../lib/tier";
 
 const nf = new Intl.NumberFormat("en-US");
 // Every qualifying opportunity on one page: the entry criteria already keep the list short.
@@ -344,7 +345,12 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                         <td>{row.opportunity_type ?? "—"}</td>
                         <td className="truncate" title={row.portfolio ?? ""}>{row.portfolio ?? "—"}</td>
                         <td className="truncate">{row.vertical ?? "—"}</td>
-                        <td className="c-right num">{row.estimated_value ? nf.format(row.estimated_value) : "—"}</td>
+                        <td className="c-right num">
+                          {row.estimated_value ? nf.format(row.estimated_value) : "—"}
+                          {tierOf(row.estimated_value) && (
+                            <div><span className={`tier-chip tier-${tierOf(row.estimated_value)}`}>{TIER_LABELS[tierOf(row.estimated_value)!]}</span></div>
+                          )}
+                        </td>
                         <td className="c-center">
                           {row.presales_received ? (
                             <>

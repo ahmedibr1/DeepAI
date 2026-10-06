@@ -962,3 +962,13 @@ table.checklist td.small{white-space:normal;min-width:160px}
 .soft-chip.comp{background:#FFE7EC;color:#B0102F;border-color:#FFC9D4}
 .mb-facts{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:3px;font-size:8pt;color:#1B171F}
 .mb-facts b{color:#4F008C;font-size:7pt;text-transform:uppercase;letter-spacing:.04em}
+
+/* Opportunity tier (by estimated value) */
+.tier-dot-medium,.tier-medium{--tier-bg:#E3EAF5;--tier-fg:#3D4F6E}
+.tier-dot-strategic,.tier-strategic{--tier-bg:#B79CDB;--tier-fg:#2A0049}
+.tier-dot-high,.tier-high{--tier-bg:#22C3CE;--tier-fg:#043B40}
+.legend-dot[class*="tier-dot-"]{background:var(--tier-bg)}
+.tier-range{font-size:10.5px;color:var(--muted);opacity:.8}
+.tier-chip{display:inline-block;margin-top:5px;padding:2px 10px !important;line-height:1.5;border-radius:999px;font-size:11px;font-weight:700;
+  background:var(--tier-bg);color:var(--tier-fg);white-space:nowrap}
+.meeting-brief .tier-chip{font-size:7.5pt;padding:0 6px;margin-top:2px}
