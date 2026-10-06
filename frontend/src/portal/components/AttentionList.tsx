@@ -81,6 +81,53 @@ function attentionType(row: MonitorRow): string {
   return "—";
 }
 
+/* Scope of work as the Presales Lead wrote it: "1- MS :" starts a section, "1.1 …" lines are its items, and a
+   section like "2- Licenses (Intersystems, Cisco, …)" lists its names as chips. Each line keeps its own direction,
+   so Arabic and English lines both read correctly. */
+type ScopeSection = { title: string; items: string[]; names: string[] };
+function parseScope(text: string): ScopeSection[] {
+  const out: ScopeSection[] = [];
+  const top = /^(\d+)\s*[-–.)]\s*(?!\d)(.*)$/;          // "1- MS :" but not "1.1 …"
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = line.match(top);
+    if (m || !out.length) {
+      let title = (m ? m[2] : line).replace(/[:：]\s*$/, "").trim();
+      let names: string[] = [];
+      const list = title.match(/^(.*?)\s*\(([^()]*,[^()]*)\)\.?\s*$/);   // "Licenses (a, b, c)."
+      if (list) {
+        title = list[1].trim();
+        names = list[2].split(/\s*,\s*/).map((x) => x.replace(/\\/g, " / ").trim()).filter(Boolean);
+      }
+      out.push({ title: title || line, items: [], names });
+    } else {
+      out[out.length - 1].items.push(line.replace(/^[-•*]\s*/, ""));
+    }
+  }
+  return out;
+}
+
+function ScopeView({ text }: { text: string }) {
+  const sections = parseScope(text);
+  if (!sections.length) return <p className="scope muted">No scope of work recorded yet.</p>;
+  return (
+    <ol className="scope-list">
+      {sections.map((s, i) => (
+        <li key={i}>
+          <div className="scope-title" dir="auto">{s.title}</div>
+          {s.items.length > 0 && (
+            <ul className="scope-items">{s.items.map((it, k) => <li key={k} dir="auto">{it}</li>)}</ul>
+          )}
+          {s.names.length > 0 && (
+            <div className="scope-names">{s.names.map((n) => <span className="soft-chip" key={n}>{n}</span>)}</div>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function ExpandedRow({ row }: { row: MonitorRow }) {
   return (
     <tr className="monitor-detail">
@@ -88,7 +135,7 @@ function ExpandedRow({ row }: { row: MonitorRow }) {
         <div className="monitor-detail-grid">
           <section className="detail-card">
             <h4><span className="detail-icon"><Icon name="target" /></span> Scope</h4>
-            <p className="scope">{row.scope || "No scope of work recorded yet."}</p>
+            <ScopeView text={row.scope ?? ""} />
             <div className="chip-row">
               <span className="chip-label"><Icon name="users" /> Internal:</span>
               {row.internal.length ? row.internal.map((name) => <span className="soft-chip" key={name}>{name}</span>)

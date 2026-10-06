@@ -381,9 +381,10 @@ const canViewAi = (_u: DUser, _o: DOpp) => true;   // the owner follows the stat
 
 const FAR_FUTURE = "9999-12-31";
 const dayDiff = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 86400000);
-const preview = (text: string, max = 600) => {
-  const clean = String(text ?? "").replace(/\s+/g, " ").trim();
-  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+/** The scope of work with its lines kept (the dashboard lays out sections and sub-items), trimmed to a preview. */
+const scopeLines = (text: string, maxLines = 30) => {
+  const lines = String(text ?? "").split(/\r?\n/).map((l) => l.replace(/[ \t]+/g, " ").trim()).filter(Boolean);
+  return lines.slice(0, maxLines).join("\n") + (lines.length > maxLines ? "\n…" : "");
 };
 const names = (items: any[], ...fields: string[]) => (items ?? [])
   .map((i) => fields.map((f) => String(i?.[f] ?? "").trim()).find(Boolean)).filter(Boolean) as string[];
@@ -430,7 +431,7 @@ function monitorRows(u: DUser) {
         attention_count: support.length + risks.length, support_count: support.length, risk_count: risks.length,
         nearest_due_date: nearest, is_overdue: !!nearest && nearest < today,
         days_since_update: Math.max(dayDiff(o.updated_at.slice(0, 10), today), 0),
-        scope: preview(data.sow ?? ""), internal: names(data.internal, "unit"), vendors: names(data.vendors, "name"),
+        scope: scopeLines(data.sow ?? ""), internal: names(data.internal, "unit"), vendors: names(data.vendors, "name"),
         criteria: entryCriteria(o),
         support: [...support].sort((a, b) => (a.due_date ?? FAR_FUTURE).localeCompare(b.due_date ?? FAR_FUTURE)),
         risks: [...risks].sort((a, b) => (a.due_date ?? FAR_FUTURE).localeCompare(b.due_date ?? FAR_FUTURE)),

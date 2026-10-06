@@ -944,3 +944,14 @@ table.checklist td.small{white-space:normal;min-width:160px}
 .slides-link{display:inline-flex;align-items:center;margin-top:5px;padding:2px 9px;border-radius:999px;font-size:11px;
   font-weight:700;color:#fff;background:var(--purple);text-decoration:none;white-space:nowrap}
 .slides-link:hover{background:var(--purple-deep);color:#fff}
+
+/* Dashboard → expanded row → Scope */
+.scope-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:10px;counter-reset:scope}
+.scope-list > li{counter-increment:scope;position:relative;padding:8px 12px 8px 40px;background:#FBF9FD;border:1px solid var(--line);border-radius:10px}
+.scope-list > li::before{content:counter(scope);position:absolute;left:10px;top:8px;width:20px;height:20px;border-radius:50%;
+  background:var(--purple);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.scope-title{font-weight:700;color:var(--purple-deep);font-size:13px;line-height:1.5}
+.scope-items{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:3px}
+.scope-items li{font-size:13px;line-height:1.5;padding-inline-start:12px;position:relative}
+.scope-items li::before{content:"";position:absolute;inset-inline-start:0;top:.65em;width:5px;height:5px;border-radius:50%;background:#FF375E}
+.scope-names{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
