@@ -1010,3 +1010,6 @@ table.monitor-table td{padding:14px 10px}
 .mb-table tr.mb-compact .mb-title,.mb-table tr.mb-compact .mb-acc{white-space:nowrap}
 .mb-table tr.mb-compact td:nth-child(2){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mb-table tr.mb-compact .mb-val{font-size:8.5pt}
+.bg-list{margin:0 0 14px;padding:10px 14px 10px 30px;background:#FBF9FD;border:1px solid var(--line);border-radius:10px;display:grid;gap:4px}
+.bg-list li{font-size:13px;line-height:1.55}
+.bg-list li[dir="rtl"],.bg-list li:dir(rtl){text-align:right}

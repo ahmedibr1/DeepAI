@@ -68,6 +68,7 @@ export interface MonitorRow {
   submission_date: string | null; days_remaining: number | null; is_overdue_submission: boolean;
   attention_count: number; support_count: number; risk_count: number;
   nearest_due_date: string | null; is_overdue: boolean; days_since_update: number;
+  background: string;
   scope: string; internal: string[]; vendors: string[];
   ps_duration: string | null; ms_duration: string | null; competitors: string[];
   support: { need: string; priority: string; from: string; due_date: string | null }[];

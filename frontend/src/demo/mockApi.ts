@@ -437,6 +437,7 @@ function monitorRows(u: DUser) {
         attention_count: support.length + risks.length, support_count: support.length, risk_count: risks.length,
         nearest_due_date: nearest, is_overdue: !!nearest && nearest < today,
         days_since_update: Math.max(dayDiff(o.updated_at.slice(0, 10), today), 0),
+        background: scopeLines(data.background ?? "", 12),
         scope: scopeLines(data.sow ?? ""), internal: names(data.internal, "unit"), vendors: names(data.vendors, "name"),
         ps_duration: duration(data.psDuration), ms_duration: duration(data.msDuration),
         competitors: names(data.competitors, "name"),

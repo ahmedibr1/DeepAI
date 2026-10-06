@@ -135,6 +135,10 @@ function ExpandedRow({ row }: { row: MonitorRow }) {
       <td colSpan={8}>
         <div className="monitor-detail-grid">
           <section className="detail-card">
+            <h4><span className="detail-icon"><Icon name="history" /></span> Opportunity Background</h4>
+            {row.background
+              ? <ul className="bg-list">{row.background.split("\n").map((l, i) => <li key={i} dir="auto">{l.replace(/^[-•*]\s*/, "")}</li>)}</ul>
+              : <p className="scope muted">No background recorded yet.</p>}
             <h4><span className="detail-icon"><Icon name="target" /></span> Scope</h4>
             <ScopeView text={row.scope ?? ""} />
             <div className="chip-row">
