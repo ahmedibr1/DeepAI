@@ -14,7 +14,7 @@ import { AI_STATUS_LABELS, ALLOWED_EXTENSIONS, attentionItems, COMMENT_TYPES, DE
 
 // The key carries the shape version: when the demo model changes, older saved data is ignored rather
 // than half-loaded, so nobody gets a broken page after an update.
-const KEY = "pp-demo-v6";
+const KEY = "pp-demo-v7";
 const AI_DEFAULTS = {
   generation: { temperature: 0.2, max_output_tokens: 4000, response_format: "json" },
   retrieval: { top_k: 12, min_score: 0.25, rerank: false },
@@ -30,7 +30,7 @@ Rules:
 - Separate confirmed information, management observations, AI inference and missing information.
 - Judge readiness across opportunity understanding, technical, commercial, partner, proposal, risk,
   director concerns and customer requirement coverage.`;
-for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3", "pp-demo-v4", "pp-demo-v5"]) {
+for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3", "pp-demo-v4", "pp-demo-v5", "pp-demo-v6"]) {
   try { localStorage.removeItem(stale); } catch { /* storage may be unavailable */ }
 }
 export const DEMO_PASSWORD = "Demo2026pass";
