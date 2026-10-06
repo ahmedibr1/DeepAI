@@ -267,20 +267,6 @@ table.monitor-table tbody tr:hover td{background:#FCFAFE}
 table.monitor-table tr.expanded td{background:#FAF6FE}
 table.monitor-table .c-right{text-align:right}
 table.monitor-table .c-center{text-align:center}
-table.monitor-table th:nth-child(1){width:4.5%}
-table.monitor-table th:nth-child(2){width:10.5%}
-table.monitor-table th:nth-child(3){width:10%}
-table.monitor-table th:nth-child(4){width:17%}
-table.monitor-table th:nth-child(5){width:3.5%}
-table.monitor-table th:nth-child(6){width:6%}
-table.monitor-table th:nth-child(7){width:6%}
-table.monitor-table th:nth-child(8){width:7%}
-table.monitor-table th:nth-child(9){width:7%}
-table.monitor-table th:nth-child(10){width:9%}
-table.monitor-table th:nth-child(11){width:5%}
-table.monitor-table th:nth-child(12){width:6.5%}
-table.monitor-table th:nth-child(13){width:8%}
-table.monitor-table th:nth-child(14){width:4%}
 .truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Names in the dashboard monitor are shown in full, wrapping onto more lines (Arabic reads right to left). */
 table.monitor-table td.num .op-link{white-space:nowrap}
@@ -288,9 +274,6 @@ table.monitor-table td.wrap{white-space:normal;overflow-wrap:anywhere;line-heigh
 table.monitor-table td.wrap.wide{font-weight:700;color:var(--purple-deep)}
 table.monitor-table td.wrap[dir="auto"]{text-align:start}
 table.monitor-table td.num{white-space:nowrap}
-table.monitor-table td:nth-child(12){white-space:normal}
-table.monitor-table td:nth-child(8){white-space:nowrap}
-table.monitor-table th:nth-child(11){white-space:nowrap}
 .truncate.wide{font-weight:700;color:var(--purple-deep)}
 
 .num-cell{display:flex;align-items:center;gap:6px;color:var(--muted)}
@@ -487,24 +470,12 @@ table.monitor-table tr.expanded td:first-child{box-shadow:inset 3px 0 0 var(--pu
   /* auto layout on phones, so the name takes the space the hidden columns freed */
   table.monitor-table{min-width:0;width:100%;table-layout:auto}
   table.monitor-table thead{display:none}
-  table.monitor-table td:nth-child(1){width:30px}
-  table.monitor-table td:nth-child(10),table.monitor-table td:nth-child(11),
-  table.monitor-table td:nth-child(14){width:1%;white-space:nowrap}
   table.monitor-table td{padding:12px 6px;vertical-align:middle}
-  table.monitor-table td.truncate.wide{white-space:normal;font-size:13px;line-height:1.35}
-  .sub-line{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:2px}
   table.monitor-table th:nth-child(3),table.monitor-table td:nth-child(3),
-  table.monitor-table th:nth-child(2),table.monitor-table td:nth-child(2),
-  table.monitor-table th:nth-child(5),table.monitor-table td:nth-child(5),
-  table.monitor-table th:nth-child(6),table.monitor-table td:nth-child(6),
-  table.monitor-table th:nth-child(7),table.monitor-table td:nth-child(7),
-  table.monitor-table th:nth-child(8),table.monitor-table td:nth-child(8),
-  table.monitor-table th:nth-child(9),table.monitor-table td:nth-child(9),
-  table.monitor-table th:nth-child(12),table.monitor-table td:nth-child(12),
-  table.monitor-table th:nth-child(13),table.monitor-table td:nth-child(13){display:none}
-  table.monitor-table th:nth-child(1){width:4.5%} table.monitor-table th:nth-child(4){width:auto}
-  table.monitor-table th:nth-child(10){width:9%} table.monitor-table th:nth-child(11){width:5%}
-  table.monitor-table th:nth-child(14){width:4%}
+  table.monitor-table th:nth-child(4),table.monitor-table td:nth-child(4),
+  table.monitor-table th:nth-child(7),table.monitor-table td:nth-child(7){display:none}
+  table.monitor-table td:nth-child(1){width:30px}
+  table.monitor-table td:nth-child(5),table.monitor-table td:nth-child(6),table.monitor-table td:nth-child(8){width:1%;white-space:nowrap}
   .date-pill{min-width:0;font-size:11px;padding:4px 6px}
   .attention-count{min-width:28px;height:26px;padding:0 6px}
   .monitor-detail td{padding:4px 10px 14px}
@@ -981,3 +952,51 @@ table.checklist td.small{white-space:normal;min-width:160px}
 .mb-table tr.mb-group td{background:color-mix(in srgb,var(--tier-bg) 22%,#fff) !important;border-top:2px solid var(--tier-bg);
   font-weight:700;font-size:8.5pt;padding:4px 6px;color:#2A0049}
 .mb-table tr.mb-group .tier-chip{margin:0 6px 0 0}
+
+/* Attention Monitor, 8 columns: # · Opportunity · Value · With Presales · Submission · Attention · Lead · menu */
+@media (min-width:761px){table.monitor-table{min-width:900px}}
+table.monitor-table th{font-size:11.5px;text-transform:none;white-space:nowrap}
+table.monitor-table th:nth-child(1){width:4%}
+table.monitor-table th:nth-child(2){width:40%}
+table.monitor-table th:nth-child(3){width:11%}
+table.monitor-table th:nth-child(4){width:10%}
+table.monitor-table th:nth-child(5){width:12%}
+table.monitor-table th:nth-child(6){width:9%}
+table.monitor-table th:nth-child(7){width:11%}
+table.monitor-table th:nth-child(8){width:3%}
+table.monitor-table td{padding:14px 10px}
+.opp-cell{white-space:normal}
+.opp-line{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+.opp-line .op-link{font-weight:700;font-size:12.5px}
+.opp-line .slides-link{margin:0 0 0 auto}
+.type-tag{font-size:10.5px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.crit-tag{font-size:10.5px;font-weight:700;color:#B0102F;background:#FFE7EC;border-radius:999px;padding:1px 7px}
+.opp-name{display:block;font-size:14.5px;font-weight:700;line-height:1.45;color:var(--purple-deep);text-decoration:none;text-align:start}
+.opp-name:hover{text-decoration:underline}
+.opp-account{font-size:12.5px;color:var(--muted);margin-top:2px;text-align:start}
+.value-cell{font-size:14px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.days-big{font-size:15px;font-weight:700;color:var(--ink)}
+.days-big span{font-size:11px;font-weight:600;color:var(--muted)}
+.att-why{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.3}
+
+/* Dashboard (management): key numbers and a one-line entry criteria strip */
+.kpi-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 12px}
+.kpi-tile{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;box-shadow:var(--shadow)}
+.kpi-tile b{font-size:26px;line-height:1.1;color:var(--purple-deep)}
+.kpi-tile span{font-size:13px;font-weight:700;color:var(--ink)}
+.kpi-tile small{font-size:11.5px;color:var(--muted)}
+.kpi-tile.bad{border-color:#F6B7C4;background:#FFF5F7}.kpi-tile.bad b{color:#C8102E}
+.kpi-tile.warn{border-color:#F7D9A8;background:#FFFAF1}.kpi-tile.warn b{color:#B26A00}
+.entry-strip{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;background:#2A0049;color:#E9DDF7;border-radius:12px;
+  padding:10px 16px;margin:0 0 16px;font-size:13px}
+.entry-strip-label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#FF375E}
+.entry-strip-item{display:inline-flex;align-items:center;gap:6px}
+.entry-strip-item svg{width:14px;height:14px;color:#FF375E}
+.entry-strip-item b{background:rgba(255,255,255,.14);color:#fff;border-radius:999px;padding:0 8px;font-size:12px}
+.entry-strip-link{margin-left:auto;color:#fff;font-weight:700;text-decoration:underline}
+@media (max-width:1000px){.kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.since{font-size:11px;color:var(--muted);white-space:nowrap}
+.tier-group-head{flex-wrap:wrap;row-gap:4px}
+@media (max-width:760px){.tier-group{margin:12px 0}.tier-group-head .muted.small:last-child{display:none}}
+@media (max-width:760px){.opp-line .slides-link{margin:0}.opp-name{font-size:14px}}
+@media (max-width:760px){.att-why{display:none}.opp-cell{min-width:170px}}

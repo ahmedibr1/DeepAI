@@ -12,7 +12,7 @@ import { fmtDate } from "../lib/format";
 import { Empty, ErrorAlert, Modal, useToast } from "./ui";
 import { Icon } from "./Icon";
 import { MeetingBrief } from "./MeetingBrief";
-import { TIER_LABELS, groupByTier, tierOf } from "../lib/tier";
+import { groupByTier } from "../lib/tier";
 
 const nf = new Intl.NumberFormat("en-US");
 // Every qualifying opportunity on one page: the entry criteria already keep the list short.
@@ -132,7 +132,7 @@ function ScopeView({ text }: { text: string }) {
 function ExpandedRow({ row }: { row: MonitorRow }) {
   return (
     <tr className="monitor-detail">
-      <td colSpan={14}>
+      <td colSpan={8}>
         <div className="monitor-detail-grid">
           <section className="detail-card">
             <h4><span className="detail-icon"><Icon name="target" /></span> Scope</h4>
@@ -303,17 +303,11 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
               <thead>
                 <tr>
                   <th scope="col" className="c-num">#</th>
-                  <th scope="col">Opportunity Number</th>
-                  <th scope="col">Account</th>
-                  <th scope="col">Opportunity Name</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Portfolio</th>
-                  <th scope="col">Vertical</th>
-                  <th scope="col" className="c-right">Estimated Solution Value<br /><span className="sub-head">(SAR)</span></th>
-                  <th scope="col" className="c-center">Presales Received Date<br /><span className="sub-head">(Days)</span></th>
-                  <th scope="col" className="c-center">Customer Submission Date<br /><span className="sub-head">(Days Remaining)</span></th>
+                  <th scope="col">Opportunity</th>
+                  <th scope="col" className="c-right">Value (SAR)</th>
+                  <th scope="col" className="c-center">With Presales</th>
+                  <th scope="col" className="c-center">Customer Submission</th>
                   <th scope="col" className="c-center">Attention</th>
-                  <th scope="col">Attention (Why)</th>
                   <th scope="col">Presales Lead</th>
                   <th scope="col"><span className="vh">Actions</span></th>
                 </tr>
@@ -332,42 +326,23 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                           </button>
                           <span className="muted">{ordered.indexOf(row) + 1}</span>
                         </div></td>
-                        <td className="num">
-                          <Link className="op-link" to={`/opportunities/${row.id}`}>{row.opportunity_number}</Link>
-                          {row.criteria && (
-                            <span className="crit-chips">
-                              {row.criteria.value && <span title="Opportunity value of SAR 20M or more">20M+</span>}
-                              {row.criteria.previous_projects && <span title="Previous delivered projects">Prev. projects</span>}
-                              {row.criteria.strategic && <span title="Flagged strategic opportunity">⚑ Strategic</span>}
-                            </span>
-                          )}
-                          <Link className="slides-link" to={`/opportunities/${row.id}/slides`} title="View the DeepDive slides">
-                            ▶ Slides
-                          </Link>
-
+                        <td className="opp-cell">
+                          <div className="opp-line">
+                            <Link className="op-link" to={`/opportunities/${row.id}`}>{row.opportunity_number}</Link>
+                            {row.opportunity_type && <span className="type-tag">{row.opportunity_type}</span>}
+                            {row.criteria?.previous_projects && <span className="crit-tag" title="Previous delivered projects">Prev. projects</span>}
+                            {row.criteria?.strategic && <span className="crit-tag" title="Flagged strategic opportunity">⚑ Flagged</span>}
+                            <Link className="slides-link" to={`/opportunities/${row.id}/slides`} title="View the DeepDive slides">▶ Slides</Link>
+                          </div>
+                          <Link className="opp-name" to={`/opportunities/${row.id}`} dir="auto">{row.title}</Link>
+                          <div className="opp-account" dir="auto">{row.account_name}</div>
                         </td>
-                        <td className="wrap" dir="auto">{row.account_name}</td>
-                        <td className="wrap wide" dir="auto">
-                          {row.title}
-                          {/* shown on phones, where the account column is hidden */}
-                          <span className="sub-line">{row.opportunity_number} · {row.account_name}</span>
-                        </td>
-                        <td>{row.opportunity_type ?? "—"}</td>
-                        <td className="truncate" title={row.portfolio ?? ""}>{row.portfolio ?? "—"}</td>
-                        <td className="truncate">{row.vertical ?? "—"}</td>
-                        <td className="c-right num">
-                          {row.estimated_value ? nf.format(row.estimated_value) : "—"}
-                          {tierOf(row.estimated_value) && (
-                            <div><span className={`tier-chip tier-${tierOf(row.estimated_value)}`}>{TIER_LABELS[tierOf(row.estimated_value)!]}</span></div>
-                          )}
-                        </td>
+                        <td className="c-right value-cell">{row.estimated_value ? nf.format(row.estimated_value) : "—"}</td>
                         <td className="c-center">
                           {row.presales_received ? (
                             <>
-                              <div>{fmtDate(row.presales_received)}</div>
-                              <div className="muted small">
-                                {row.days_with_presales !== null ? `(${row.days_with_presales} days)` : ""}
-                              </div>
+                              <div className="days-big">{row.days_with_presales ?? "—"} <span>days</span></div>
+                              <div className="since">since {fmtDate(row.presales_received)}</div>
                             </>
                           ) : "—"}
                         </td>
@@ -382,8 +357,8 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
                         </td>
                         <td className="c-center">
                           <span className={`attention-count att-${attentionTone(row.attention_count)}`}>{row.attention_count}</span>
+                          {row.attention_count > 0 && <div className="att-why">{attentionType(row)}</div>}
                         </td>
-                        <td className="small">{attentionType(row)}</td>
                         <td className="wrap" dir="auto">{row.owner ?? "—"}</td>
                         <td className="cell-menu">
                           <button type="button" className="dots" aria-haspopup="menu"

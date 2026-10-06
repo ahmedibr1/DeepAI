@@ -107,7 +107,8 @@ export function DashboardPage() {
 
       {data && (
         <>
-          <div className="stat-grid">
+          {management && data.monitor && <MonitorKpis rows={data.monitor} entry={data.entry} />}
+          {!management && <div className="stat-grid">
             {data.cards.map((card) => (
               <Link key={card.key} to={cardLink(card)}
                 className={`stat kpi-${card.key}${card.tone ? ` tone-${card.tone}` : ""}`} aria-label={card.label}>
@@ -132,7 +133,7 @@ export function DashboardPage() {
                 </div>
               </Link>
             ))}
-          </div>
+          </div>}
 
           {management && data.entry && <EntryCriteriaBanner entry={data.entry} />}
 
@@ -168,29 +169,45 @@ export function DashboardPage() {
 }
 
 /** The DeepDive entry criteria: the dashboard lists opportunities that meet at least one of them. */
-function EntryCriteriaBanner({ entry }: { entry: NonNullable<DashboardSummary["entry"]> }) {
-  const million = Math.round(entry.min_value / 1_000_000);
-  const items: [string, string, number][] = [
-    [`≥ SAR ${million}M`, "opportunity value", entry.value],
-    ["Previous", "delivered projects", entry.previous_projects],
-    ["Flagged", "strategic opportunity", entry.strategic],
+/** The few numbers a director reads first, from the opportunities on the dashboard. */
+function MonitorKpis({ rows, entry }: { rows: NonNullable<DashboardSummary["monitor"]>; entry?: DashboardSummary["entry"] }) {
+  const total = rows.reduce((t, r) => t + (r.estimated_value || 0), 0);
+  const overdue = rows.filter((r) => r.is_overdue_submission).length;
+  const soon = rows.filter((r) => !r.is_overdue_submission && r.days_remaining != null && r.days_remaining <= 7).length;
+  const attention = rows.filter((r) => r.attention_count > 0).length;
+  const money = (v: number) => (v >= 1_000_000 ? `${Math.round(v / 100_000) / 10}M` : v.toLocaleString("en-US"));
+  const kpis: { v: string | number; l: string; note?: string; tone?: string }[] = [
+    { v: rows.length, l: "On the dashboard", note: entry ? `of ${entry.active} active opportunities` : undefined },
+    { v: `SAR ${money(total)}`, l: "Total estimated value" },
+    { v: overdue, l: "Submission overdue", tone: overdue ? "bad" : undefined },
+    { v: soon, l: "Submission within 7 days", tone: soon ? "warn" : undefined },
+    { v: attention, l: "Need attention", note: "high risks or support needs", tone: attention ? "warn" : undefined },
   ];
   return (
-    <section className="entry-banner" aria-label="Entry criteria">
-      <div className="entry-kicker">Entry criteria</div>
-      <div className="entry-items">
-        {items.map(([big, small, n]) => (
-          <div key={big} className="entry-item">
-            <span className="entry-check" aria-hidden="true"><Icon name="check" /></span>
-            <div><b>{big}</b><span>{small}</span></div>
-            <span className="entry-count" title="Active opportunities meeting this">{n}</span>
-          </div>
-        ))}
-      </div>
-      <p className="entry-note">
-        Showing {entry.qualifying} of {entry.active} active opportunities — those that meet at least one criterion.{" "}
-        <Link to="/opportunities?active=1">See all active opportunities</Link>
-      </p>
+    <div className="kpi-row">
+      {kpis.map((k) => (
+        <div key={k.l} className={`kpi-tile${k.tone ? ` ${k.tone}` : ""}`}>
+          <b>{k.v}</b><span>{k.l}</span>{k.note && <small>{k.note}</small>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** One line: which opportunities the dashboard shows, and how many meet each criterion. */
+function EntryCriteriaBanner({ entry }: { entry: NonNullable<DashboardSummary["entry"]> }) {
+  const million = Math.round(entry.min_value / 1_000_000);
+  const items: [string, number][] = [
+    [`≥ SAR ${million}M value`, entry.value], ["Previous delivered projects", entry.previous_projects],
+    ["Flagged strategic", entry.strategic],
+  ];
+  return (
+    <section className="entry-strip" aria-label="Entry criteria">
+      <span className="entry-strip-label">Entry criteria</span>
+      {items.map(([label, n]) => (
+        <span key={label} className="entry-strip-item"><Icon name="check" /> {label} <b>{n}</b></span>
+      ))}
+      <Link className="entry-strip-link" to="/opportunities?active=1">See all {entry.active} active ›</Link>
     </section>
   );
 }
