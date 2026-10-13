@@ -35,7 +35,8 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9#]+/g, " ").trim();
 function asDate(v: string): string {
   const t = v.trim();
   if (/^\d{4,5}(\.\d+)?$/.test(t)) {
-    const d = new Date(Date.UTC(1899, 11, 30) + Math.round(Number(t)) * 86400000);
+    // The fraction is the time of day: keep the day itself (a 15:30 deadline is still that day, not the next).
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(t) + 1e-9) * 86400000);
     return d.toISOString().slice(0, 10);
   }
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
