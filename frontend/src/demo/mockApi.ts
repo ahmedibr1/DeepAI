@@ -14,7 +14,7 @@ import { AI_STATUS_LABELS, ALLOWED_EXTENSIONS, attentionItems, COMMENT_TYPES, DE
 
 // The key carries the shape version: when the demo model changes, older saved data is ignored rather
 // than half-loaded, so nobody gets a broken page after an update.
-const KEY = "pp-demo-v7";
+const KEY = "pp-demo-v8";
 const AI_DEFAULTS = {
   generation: { temperature: 0.2, max_output_tokens: 4000, response_format: "json" },
   retrieval: { top_k: 12, min_score: 0.25, rerank: false },
@@ -30,7 +30,7 @@ Rules:
 - Separate confirmed information, management observations, AI inference and missing information.
 - Judge readiness across opportunity understanding, technical, commercial, partner, proposal, risk,
   director concerns and customer requirement coverage.`;
-for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3", "pp-demo-v4", "pp-demo-v5", "pp-demo-v6"]) {
+for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3", "pp-demo-v4", "pp-demo-v5", "pp-demo-v6", "pp-demo-v7"]) {
   try { localStorage.removeItem(stale); } catch { /* storage may be unavailable */ }
 }
 export const DEMO_PASSWORD = "Demo2026pass";
@@ -287,7 +287,8 @@ const versionsOf = (oppId: string) => db.versions.filter((v) => v.opportunity_id
     Builder), falling back to the portal user who owns it. Shown wherever the portal says who owns an opportunity. */
 function leadName(o: DOpp): string {
   const v = db.versions.find((x) => x.id === o.current_version_id);
-  return String(v?.data?.presalesOwner ?? "").replace(/\s+/g, " ").trim() || user(o.owner_id)?.full_name || "—";
+  return String(v?.data?.presalesOwner ?? "").replace(/\s+/g, " ").trim()
+    || ((o.source ?? "sheet") === "sheet" ? "Not assigned" : user(o.owner_id)?.full_name) || "—";
 }
 const leadRef = (o: DOpp) => ({ ...(ref(user(o.owner_id)) ?? { id: "", username: "" }), full_name: leadName(o) });
 
@@ -628,7 +629,9 @@ function newOpportunity(u: DUser, f: { number: string; title: string; account: s
   const v: DVersion = { id: uid(), opportunity_id: o.id, version_number: 1,
     change_notes: source === "sheet" ? "Created from the opportunities sheet" : "Initial version", is_locked: false,
     locked_at: null, submitted_at: null, revision: 0, created_at: t, updated_at: t, created_by: u.id, updated_by: u.id,
-    data: { customer: o.account_name, oppName: o.title, oppNumber: f.number, presalesOwner: f.presalesLead || u.full_name,
+    data: { customer: o.account_name, oppName: o.title, oppNumber: f.number,
+            // A sheet row with no Presales Lead stays unassigned; one created by hand belongs to its creator.
+            presalesOwner: f.presalesLead || (source === "manual" ? u.full_name : ""),
             accountManager: f.accountManager ?? "", value: f.value ?? "", background: "", sow: f.sow ?? "",
             submissionDate: f.submissionDate ?? "", presalesReceived: f.presalesReceived ?? "" } };
   o.current_version_id = v.id;

@@ -128,13 +128,15 @@ export async function readOpportunitySheet(file: File): Promise<{ rows: Opportun
     }
   });
   if (!col.has("title")) throw new Error("No “Opportunity Name” column was found.");
+  // CRM exports leave "Estimated Solution Value" empty on new opportunities; the contract value (TCV) stands in.
+  const tcvAt = ["total contract value tcv", "total contract value"].map((n) => header.indexOf(n)).find((i) => i >= 0) ?? -1;
   const rows = grid.slice(headerAt + 1)
     .filter((r) => r.some((c) => (c ?? "").trim()))
     .map((r) => {
       const get = (k: keyof OpportunityRow) => (col.has(k) ? (r[col.get(k)!] ?? "").trim() : "");
       return {
         number: get("number"), title: get("title"), account: get("account"), type: get("type"), vertical: get("vertical"),
-        value: get("value").replace(/[^0-9.]/g, ""), submission_date: asDate(get("submission_date")),
+        value: (get("value") || (tcvAt >= 0 ? (r[tcvAt] ?? "").trim() : "")).replace(/[^0-9.]/g, ""), submission_date: asDate(get("submission_date")),
         presales_received: asDate(get("presales_received")),
         presales_lead: get("presales_lead"), account_manager: get("account_manager"), sow: get("sow"),
         strategic: get("strategic"), previous_projects: get("previous_projects"),
