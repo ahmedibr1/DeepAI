@@ -143,7 +143,7 @@ export function DashboardPage() {
                 <div>
                   <h2 className="section">Opportunity Attention Monitor ({data.monitor?.length ?? 0})</h2>
                   <span className="muted small">
-                    Strategic and High: opportunities meeting the entry criteria. Medium: active opportunities below SAR 20M. Risks and support needs are highlighted for attention.
+                    Strategic and High: opportunities meeting the entry criteria. Medium: active opportunities below SAR 20M. Low: no Presales Lead assigned yet. Risks and support needs are highlighted for attention.
                   </span>
                 </div>
                 <Legends />

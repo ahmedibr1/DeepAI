@@ -70,6 +70,7 @@ export interface MonitorRow {
   nearest_due_date: string | null; is_overdue: boolean; days_since_update: number;
   background: string;
   scope: string; internal: string[]; vendors: string[];
+  lead_assigned: boolean;
   ps_duration: string | null; ms_duration: string | null; competitors: string[];
   support: { need: string; priority: string; from: string; due_date: string | null }[];
   risks: { risk: string; category: string; impact: string; mitigation: string; owner: string; due_date: string | null }[];

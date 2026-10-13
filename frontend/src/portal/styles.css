@@ -1013,3 +1013,4 @@ table.monitor-table td{padding:14px 10px}
 .bg-list{margin:0 0 14px;padding:10px 14px 10px 30px;background:#FBF9FD;border:1px solid var(--line);border-radius:10px;display:grid;gap:4px}
 .bg-list li{font-size:13px;line-height:1.55}
 .bg-list li[dir="rtl"],.bg-list li:dir(rtl){text-align:right}
+.tier-dot-low,.tier-low{--tier-bg:#C9C4CF;--tier-fg:#3B3542}

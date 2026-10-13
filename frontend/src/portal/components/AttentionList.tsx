@@ -300,7 +300,7 @@ export function AttentionList({ rows, portfolios = [], onChanged }:
               <span className="tier-chip">{g.label}</span>
               <b>{g.rows.length} opportunit{g.rows.length === 1 ? "y" : "ies"}</b>
               <span className="muted small">SAR {nf.format(g.rows.reduce((t, r) => t + (r.estimated_value || 0), 0))}</span>
-              {g.range && <span className="muted small">· value {g.range}</span>}
+              {g.range && <span className="muted small">· {g.range}</span>}
             </header>
           <div className="table-wrap">
             <table className="data monitor-table">

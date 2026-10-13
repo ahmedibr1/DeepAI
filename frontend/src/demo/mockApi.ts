@@ -431,6 +431,7 @@ function monitorRows(u: DUser) {
         portfolio: team(o.team_id)?.name ?? null,
         owner: leadName(o), manager: user(o.manager_id)?.full_name ?? null,
         director: user(o.director_id)?.full_name ?? null,
+        lead_assigned: leadName(o) !== "Not assigned",
         estimated_value: value,
         presales_received: received, days_with_presales: received ? dayDiff(received, today) : null,
         submission_date: submission, days_remaining: submission ? dayDiff(today, submission) : null,
@@ -448,7 +449,8 @@ function monitorRows(u: DUser) {
       };
     })
     // Opportunities meeting the entry criteria, plus the Medium tier (a value below SAR 20M), listed under them.
-    .filter((r) => r.criteria.qualifies || (r.estimated_value > 0 && r.estimated_value < ENTRY_MIN_VALUE))
+    // ...and the Low tier: no Presales Lead assigned yet, whatever the value.
+    .filter((r) => r.criteria.qualifies || (r.estimated_value > 0 && r.estimated_value < ENTRY_MIN_VALUE) || !r.lead_assigned)
     .sort((a, b) => (a.submission_date ?? FAR_FUTURE).localeCompare(b.submission_date ?? FAR_FUTURE)
       || b.attention_count - a.attention_count || a.title.localeCompare(b.title));
 }

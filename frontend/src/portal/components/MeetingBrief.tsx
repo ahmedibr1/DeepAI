@@ -43,7 +43,7 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
         <div>
           <div className="mb-kicker">DeepAI · Presales</div>
           <h1>Opportunity Attention Monitor</h1>
-          <p>Strategic and High: opportunities meeting the entry criteria (≥ SAR 20M value, previous delivered projects, or flagged strategic). Medium: active opportunities below SAR 20M.</p>
+          <p>Strategic and High: opportunities meeting the entry criteria (≥ SAR 20M value, previous delivered projects, or flagged strategic). Medium: active opportunities below SAR 20M. Low: no Presales Lead assigned yet.</p>
         </div>
         <div className="mb-date">{today.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</div>
       </header>
@@ -69,13 +69,13 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
             <Fragment key={g.tier}>
               <tr className={`mb-group tier-${g.tier}`}><td colSpan={7}>
                 <span className="tier-chip">{g.label}</span> {g.rows.length} opportunit{g.rows.length === 1 ? "y" : "ies"}
-                {" · "}SAR {nf.format(g.rows.reduce((t, r) => t + (r.estimated_value || 0), 0))}{g.range && ` · value ${g.range}`}
+                {" · "}SAR {nf.format(g.rows.reduce((t, r) => t + (r.estimated_value || 0), 0))}{g.range && ` · ${g.range}`}
               </td></tr>
               {g.rows.map((r) => {
                 const i = ordered.indexOf(r);
                 const d = days(r);
                 return (
-                  <tr key={r.id} className={g.tier === "medium" ? "mb-compact" : undefined}>
+                  <tr key={r.id} className={g.tier === "medium" || g.tier === "low" ? "mb-compact" : undefined}>
                     <td className="mb-n">{i + 1}</td>
                     <td>
                       <div className="mb-num">{r.opportunity_number}
@@ -91,7 +91,7 @@ export function MeetingBrief({ rows }: { rows: MonitorRow[] }) {
                       </div>
                     </td>
                     <td className="r mb-val">{r.estimated_value ? nf.format(r.estimated_value) : "—"}
-                      {tierOf(r.estimated_value) && <div><span className={`tier-chip tier-${tierOf(r.estimated_value)}`}>{TIER_LABELS[tierOf(r.estimated_value)!]}</span></div>}
+                      {tierOf(r.estimated_value, r.lead_assigned) && <div><span className={`tier-chip tier-${tierOf(r.estimated_value, r.lead_assigned)}`}>{TIER_LABELS[tierOf(r.estimated_value, r.lead_assigned)!]}</span></div>}
                     </td>
                     <td>
                       <div className="mb-sub">{r.submission_date ? fmtDate(r.submission_date) : "—"}</div>
