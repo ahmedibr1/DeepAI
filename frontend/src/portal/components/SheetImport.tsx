@@ -10,6 +10,7 @@ import { ErrorAlert, Modal, useToast } from "./ui";
 interface Brief { number: string; title: string; account: string }
 interface Plan {
   rows: number; add: Brief[]; restore: Brief[]; archive: Brief[]; manual: Brief[]; unchanged: number;
+  update: (Brief & { changes: string[] })[];
   invalid: { row: number; reason: string }[]; applied?: boolean;
 }
 
@@ -48,12 +49,12 @@ export function SheetImport({ onDone }: { onDone: () => void }) {
     setBusy(true); setError(null);
     try {
       const done = await api.post<Plan>("/opportunities/import-sheet", { rows, apply: true });
-      toast(`Sheet applied: ${done.add.length} added, ${done.archive.length} archived, ${done.restore.length} restored.`);
+      toast(`Sheet applied: ${done.add.length} added, ${done.update.length} updated, ${done.archive.length} archived, ${done.restore.length} restored.`);
       close(); onDone();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
-  const changes = plan ? plan.add.length + plan.archive.length + plan.restore.length : 0;
+  const changes = plan ? plan.add.length + plan.update.length + plan.archive.length + plan.restore.length : 0;
   return <>
     <input ref={input} type="file" accept=".xlsx,.csv" hidden
       onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pick(f); }} />
@@ -76,11 +77,18 @@ export function SheetImport({ onDone }: { onDone: () => void }) {
             <div className="add"><b>{plan.add.length}</b><span>New → Active</span></div>
             <div className="archive"><b>{plan.archive.length}</b><span>Not in sheet → Archive</span></div>
             <div><b>{plan.restore.length}</b><span>Back in sheet → Restore</span></div>
+            <div className="update"><b>{plan.update.length}</b><span>Details updated</span></div>
             <div><b>{plan.unchanged}</b><span>Already active</span></div>
             <div><b>{plan.manual.length}</b><span>⚑ Manual — left as is</span></div>
             {plan.invalid.length > 0 && <div><b>{plan.invalid.length}</b><span>Rows skipped</span></div>}
           </div>
           <List title="Will be added as active" items={plan.add} />
+          {plan.update.length > 0 && <>
+            <b className="small">Details updated from the sheet (opportunities without a DeepDive yet)</b>
+            <ul className="sheet-list">{plan.update.map((o) => (
+              <li key={o.number}><b>{o.number}</b> · {o.title} — <span className="muted">{o.changes.join(" · ")}</span></li>
+            ))}</ul>
+          </>}
           <List title="Will be archived (no longer in the sheet)" items={plan.archive} />
           <List title="Will be restored" items={plan.restore} />
           <List title="Added by hand — the sheet does not change these" items={plan.manual} />

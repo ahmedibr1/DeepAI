@@ -14,7 +14,7 @@ import { AI_STATUS_LABELS, ALLOWED_EXTENSIONS, attentionItems, COMMENT_TYPES, DE
 
 // The key carries the shape version: when the demo model changes, older saved data is ignored rather
 // than half-loaded, so nobody gets a broken page after an update.
-const KEY = "pp-demo-v10";
+const KEY = "pp-demo-v11";
 const AI_DEFAULTS = {
   generation: { temperature: 0.2, max_output_tokens: 4000, response_format: "json" },
   retrieval: { top_k: 12, min_score: 0.25, rerank: false },
@@ -30,7 +30,7 @@ Rules:
 - Separate confirmed information, management observations, AI inference and missing information.
 - Judge readiness across opportunity understanding, technical, commercial, partner, proposal, risk,
   director concerns and customer requirement coverage.`;
-for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3", "pp-demo-v4", "pp-demo-v5", "pp-demo-v6", "pp-demo-v7", "pp-demo-v8", "pp-demo-v9"]) {
+for (const stale of ["pp-demo-v1", "pp-demo-v2", "pp-demo-v3", "pp-demo-v4", "pp-demo-v5", "pp-demo-v6", "pp-demo-v7", "pp-demo-v8", "pp-demo-v9", "pp-demo-v10"]) {
   try { localStorage.removeItem(stale); } catch { /* storage may be unavailable */ }
 }
 export const DEMO_PASSWORD = "Demo2026pass";
@@ -673,11 +673,44 @@ function sheetPlan(rows: SheetRow[]) {
     && o.status !== "completed" && !seen.has(o.opportunity_number));
   const manual = db.opportunities.filter((o) => (o.source ?? "sheet") === "manual" && seen.has(o.opportunity_number));
   const unchanged = db.opportunities.filter((o) => (o.source ?? "sheet") === "sheet" && !o.is_archived && seen.has(o.opportunity_number));
-  return { seen, add, restore, archive, manual, unchanged, invalid,
+  const update = unchanged.concat(restore)
+    .map((o) => ({ ...brief(o), changes: refreshFromSheet(o, seen.get(o.opportunity_number)!, "", false) }))
+    .filter((u) => u.changes.length > 0);
+  return { seen, add, restore, archive, manual, unchanged, update, invalid,
     summary: { rows: rows.length, add: add.map(brief), restore: restore.map(brief), archive: archive.map(brief),
-               manual: manual.map(brief), unchanged: unchanged.length, invalid } };
+               manual: manual.map(brief), unchanged: unchanged.length, update, invalid } };
 }
 
+
+/** An opportunity still on the details the sheet gave it (no DeepDive yet) follows the sheet: name, account, type,
+    value, dates, Presales Lead, account manager and scope are taken from the latest row. Once a DeepDive is
+    uploaded, the DeepDive is the reference and the sheet no longer changes it. Returns what changes; with
+    apply = false nothing is written (the import preview). */
+const SHEET_FIELDS: [string, keyof SheetRow, string][] = [
+  ["value", "value", "value"], ["submissionDate", "submission_date", "submission date"],
+  ["presalesReceived", "presales_received", "presales received"], ["presalesOwner", "presales_lead", "Presales Lead"],
+  ["accountManager", "account_manager", "account manager"], ["sow", "sow", "scope of work"],
+];
+function refreshFromSheet(o: DOpp, r: SheetRow, t: string, apply = true): string[] {
+  const v = db.versions.find((x) => x.id === o.current_version_id);
+  if (!v || !String(v.change_notes ?? "").startsWith("Created from the opportunities sheet")) return [];
+  const show = (k: string, x: unknown) => (k === "value" && x ? Number(x).toLocaleString("en-US") : k === "sow" ? "updated" : String(x ?? "") || "—");
+  const changes: string[] = [];
+  const top: [keyof DOpp, string | undefined, string][] = [["title", r.title, "name"],
+    ["account_name", r.account && r.account !== "—" ? r.account : undefined, "account"], ["opportunity_type", r.type, "type"]];
+  top.forEach(([k, val, label]) => {
+    if (val && o[k] !== val) { changes.push(`${label}: ${o[k] ?? "—"} → ${val}`); if (apply) (o as any)[k] = val; }
+  });
+  SHEET_FIELDS.forEach(([k, rk, label]) => {
+    const val = String(r[rk] ?? "").trim();
+    if (val && String(v.data[k] ?? "") !== val) {
+      changes.push(k === "sow" ? "scope of work updated" : `${label}: ${show(k, v.data[k])} → ${show(k, val)}`);
+      if (apply) v.data[k] = val;
+    }
+  });
+  if (apply && changes.length) { v.data.oppName = o.title; v.data.customer = o.account_name; v.updated_at = t; o.updated_at = t; }
+  return changes;
+}
 
 /** Records a new DeepDive version holding `data`. The current version is kept as it was (locked). A still-empty
     first draft (never saved) is filled in place instead, so a fresh opportunity does not start with a blank v1. */
@@ -801,6 +834,7 @@ const routes: [string, RegExp, Handler][] = [
       const r = plan.seen.get(o.opportunity_number);
       if (r?.strategic !== undefined && r.strategic !== "") o.strategic = yes(r.strategic);
       if (r?.previous_projects !== undefined && r.previous_projects !== "") o.previous_projects = yes(r.previous_projects);
+      if (r) refreshFromSheet(o, r, t);
     });
     plan.archive.forEach((o) => {
       o.is_archived = true; o.updated_at = t;
@@ -812,7 +846,7 @@ const routes: [string, RegExp, Handler][] = [
       db.history.push({ id: db.seq++, opportunity_id: o.id, version_id: o.current_version_id, action: "restored", from_status: o.status,
         to_status: o.status, actor_id: u.id, comment: "Restored: back in the opportunities sheet", created_at: t });
     });
-    audit("opportunities.sheet_imported", { details: { added: plan.add.length, archived: plan.archive.length,
+    audit("opportunities.sheet_imported", { details: { updated: plan.update.length, added: plan.add.length, archived: plan.archive.length,
       restored: plan.restore.length, skipped_manual: plan.manual.length, invalid: plan.invalid.length } });
     persist();
     return { ...plan.summary, applied: true };
